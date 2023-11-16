@@ -34,7 +34,7 @@ make build-go
 OPBNB_BRIDGE_BOT_PRIVKEY=<bot privkey> ./bot --config ./bot.toml
 ```
 
-### Deploy Contracts
+### Deploy and Use Contracts
 
 1. Compile the contract using `forge`
 
@@ -47,10 +47,25 @@ make build-solidity
 ```
 cd contracts
 
+export DELEGATE_FEE=1000000000000000
 forge create \
     --rpc-url $OPBNB_TESTNET \
     --private-key $OP_DEPLOYER_PRIVKEY \
-    src/L2StandardBridgeBot.sol:L2StandardBridgeBot --constructor-args $OP_DEPLOYER_ADDRESS 1000000000000000
+    src/L2StandardBridgeBot.sol:L2StandardBridgeBot --constructor-args $OP_DEPLOYER_ADDRESS $DELEGATE_FEE
+```
+
+3. Withdraw via the deployed contract
+
+```
+export DELEGATE_FEE=1000000000000000
+export amount=2000000000000001
+export contract_addr=<deployed contract address>
+
+cast send --rpc-url $OPBNB_TESTNET \
+          --private-key $OP_DEPLOYER_PRIVKEY \
+          --value $(($DELEGATE_FEE + $amount)) \
+          $contract_addr \
+          $(cast calldata 'withdrawTo( address _l2Token, address _to, uint256 _amount, uint32 _minGasLimit, bytes calldata _extraData)' 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 $OP_DEPLOYER_ADDRESS $amount 150469 "")
 ```
 
 ## License
