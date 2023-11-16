@@ -3,6 +3,7 @@ package main
 import (
 	"bnbchain/opbnb-bridge-bot/core"
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -121,7 +122,6 @@ func runCommand(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_contract_events: %w", err)
 	}
-	db.Exec("ALTER TABLE l2_contract_events ADD UNIQUE (block_hash, log_index)")
 
 	l2ScannedBlock, err := queryL2ScannedBlock(db, &cfg)
 	if err != nil {
@@ -352,7 +352,7 @@ func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, e
 	l2ScannedBlock := core.L2ScannedBlock{Number: 0}
 	result := db.First(&l2ScannedBlock)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			db.Create(&l2ScannedBlock)
 		} else {
 			return nil, fmt.Errorf("failed to query l2_scanned_blocks: %w", result.Error)
