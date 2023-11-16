@@ -15,7 +15,7 @@ contract L2StandardBridgeBot {
     IL2StandardBridge public L2_STANDARD_BRIDGE = IL2StandardBridge(payable(L2_STANDARD_BRIDGE_ADDRESS));
 
     address payable public owner;
-    uint256 public delegationFee_;
+    uint256 public delegationFee;
 
     event WithdrawTo(address indexed from, address to, uint256 amount, bytes extraData);
 
@@ -32,7 +32,7 @@ contract L2StandardBridgeBot {
 
     constructor(address payable _owner, uint256 _delegationFee) {
         owner = _owner;
-        delegationFee_ = _delegationFee;
+        delegationFee = _delegationFee;
     }
 
     function withdrawTo(
@@ -42,7 +42,7 @@ contract L2StandardBridgeBot {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) external payable {
-        require(msg.value == delegationFee_ + _amount, "msg.value does not equal to delegationFee_ + amount");
+        require(msg.value == delegationFee + _amount, "msg.value does not equal to delegationFee_ + amount");
 
         emit WithdrawTo(msg.sender, _to, _amount, _extraData);
 
@@ -53,11 +53,7 @@ contract L2StandardBridgeBot {
         owner.transfer(address(this).balance);
     }
 
-    function setDelegateFee(uint256 _delegateFee) external onlyOwner {
-        delegationFee_ = _delegateFee;
-    }
-
-    function delegationFee() public view returns (uint256) {
-        return delegationFee_;
+    function setDelegationFee(uint256 _delegationFee) external onlyOwner {
+        delegationFee = _delegationFee;
     }
 }
