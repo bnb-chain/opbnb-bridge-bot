@@ -17,7 +17,7 @@ contract L2StandardBridgeBot {
     address payable public owner;
     uint256 public delegationFee;
 
-    event WithdrawTo(address indexed from, address to, uint256 amount, bytes extraData);
+    event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
     receive() external payable {
     }
@@ -42,9 +42,9 @@ contract L2StandardBridgeBot {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) external payable {
-        require(msg.value == delegationFee + _amount, "msg.value does not equal to delegationFee_ + amount");
+        require(msg.value == delegationFee + _amount, "msg.value does not equal to delegationFee + amount");
 
-        emit WithdrawTo(msg.sender, _to, _amount, _extraData);
+        emit WithdrawTo(msg.sender, _l2Token, _to, _amount, _minGasLimit, _extraData);
 
         L2_STANDARD_BRIDGE.withdrawTo{value: _amount}(_l2Token, _to, _amount, _minGasLimit, _extraData);
     }
