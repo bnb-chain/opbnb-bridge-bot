@@ -139,7 +139,7 @@ func runCommand(ctx *cli.Context) error {
 // It will prove the withdrawal transaction when the proposal time window has passed;
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 
