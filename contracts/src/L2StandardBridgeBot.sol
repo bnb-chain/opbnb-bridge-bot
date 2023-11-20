@@ -1,4 +1,6 @@
-pragma solidity 0.8.15;
+pragma solidity 0.8.20;
+
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 interface IL2StandardBridge {
     function withdrawTo(
@@ -10,33 +12,25 @@ interface IL2StandardBridge {
     ) external payable;
 }
 
-contract L2StandardBridgeBot {
+contract L2StandardBridgeBot is Ownable {
     address public constant L2_STANDARD_BRIDGE_ADDRESS = 0x4200000000000000000000000000000000000010;
     IL2StandardBridge public L2_STANDARD_BRIDGE = IL2StandardBridge(payable(L2_STANDARD_BRIDGE_ADDRESS));
 
     address internal constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
 
-    address payable public owner;
     uint256 public delegationFee;
 
     event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
-    receive() external payable {
-    }
+    receive() external payable { }
 
-    fallback() payable external {
-    }
+    fallback() payable external { }
 
-    modifier onlyOwner {
-        require(msg.sender == owner, "Only the contract owner can call this function");
-        _;
-    }
-
-    constructor(address payable _owner, uint256 _delegationFee) {
-        owner = _owner;
+    constructor(address payable _owner, uint256 _delegationFee) Ownable(_owner) {
         delegationFee = _delegationFee;
     }
 
+    // withdrawTo withdraws the _amount of _l2Token to _to address.
     function withdrawTo(
         address _l2Token,
         address _to,
@@ -68,10 +62,12 @@ contract L2StandardBridgeBot {
         withdrawTo(_l2Token, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
-    function withdrawToOwner() public {
-        owner.transfer(address(this).balance);
+    // withdrawFee withdraw the delegation fee vault to _recipient address, only owner can call this function.
+    function withdrawFee(address _recipient) external onlyOwner {
+        payable(_recipient).transfer(address(this).balance);
     }
 
+    // setDelegationFee set the delegation fee, only owner can call this function.
     function setDelegationFee(uint256 _delegationFee) external onlyOwner {
         delegationFee = _delegationFee;
     }
