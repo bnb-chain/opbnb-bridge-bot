@@ -51,19 +51,19 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 
 	// Events flow:
 	//
+	// event[i-5]: WithdrawalInitiated
+	// event[i-4]: ETHBridgeInitiated
+	// event[i-3]: MessagePassed
+	// event[i-2]: SentMessage
+	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	// event[i+1]: WithdrawalInitiated
-	// event[i+2]: ETHBridgeInitiated
-	// event[i+3]: MessagePassed
-	// event[i+4]: SentMessage
-	// event[i+5]: SentMessageExtension1
-	if botDelegatedWithdrawToEvent.LogIndex+5 >= len(receipt.Logs) {
-		return fmt.Errorf("out of log index")
+	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
+		return fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
-	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+3]
-	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+4]
-	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+5]
+	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
+	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-2]
+	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-1]
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
 	if err != nil {
@@ -176,19 +176,19 @@ func (b *Processor) FinalizeMessage(botDelegatedWithdrawToEvent *L2ContractEvent
 
 	// Events flow:
 	//
+	// event[i-5]: WithdrawalInitiated
+	// event[i-4]: ETHBridgeInitiated
+	// event[i-3]: MessagePassed
+	// event[i-2]: SentMessage
+	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	// event[i+1]: WithdrawalInitiated
-	// event[i+2]: ETHBridgeInitiated
-	// event[i+3]: MessagePassed
-	// event[i+4]: SentMessage
-	// event[i+5]: SentMessageExtension1
-	if botDelegatedWithdrawToEvent.LogIndex+5 >= len(receipt.Logs) {
-		return fmt.Errorf("out of log index")
+	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
+		return fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
-	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+3]
-	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+4]
-	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex+5]
+	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
+	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-2]
+	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-1]
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
 	if err != nil {

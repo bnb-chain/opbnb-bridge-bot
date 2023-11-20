@@ -41,16 +41,14 @@ contract L2StandardBridgeBot is Ownable {
         if (_l2Token == LEGACY_ERC20_ETH) {
             require(msg.value == delegationFee + _amount, "BNB withdrawal: msg.value does not equal to delegationFee + amount");
 
-            emit WithdrawTo(msg.sender, _l2Token, _to, _amount, _minGasLimit, _extraData);
-
             L2_STANDARD_BRIDGE.withdrawTo{value: _amount}(_l2Token, _to, _amount, _minGasLimit, _extraData);
         } else {
             require(msg.value == delegationFee, "BEP20 withdrawal: msg.value does not equal to delegationFee");
 
-            emit WithdrawTo(msg.sender, _l2Token, _to, _amount, _minGasLimit, _extraData);
-
             L2_STANDARD_BRIDGE.withdrawTo{value: 0}(_l2Token, _to, _amount, _minGasLimit, _extraData);
         }
+
+        emit WithdrawTo(msg.sender, _l2Token, _to, _amount, _minGasLimit, _extraData);
     }
 
     function withdraw(

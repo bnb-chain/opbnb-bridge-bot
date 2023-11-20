@@ -65,8 +65,6 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "opbnb-bridge-bot",
 		EnableBashCompletion: true,
-		DefaultCommand:       "run",
-		Flags:                flags,
 		Commands: []*cli.Command{
 			{
 				Name:        "run",
@@ -139,7 +137,7 @@ func runCommand(ctx *cli.Context) error {
 // It will prove the withdrawal transaction when the proposal time window has passed;
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 
@@ -192,7 +190,7 @@ func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gor
 							if result.Error != nil {
 								log.Crit("update finalized l2_contract_events", "error", result.Error)
 							}
-						} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") {
+						} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") || strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
 							break
 						} else {
 							log.Crit("FinalizeMessage", "error", err.Error())
@@ -223,7 +221,7 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 		}
 
 		deduped := db.Clauses(
-			clause.OnConflict{OnConstraint: "l2_contract_events_block_hash_log_index_key", DoNothing: true},
+			clause.OnConflict{DoNothing: true},
 		)
 		result := deduped.Create(&event)
 		if result.Error != nil {
@@ -266,7 +264,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		log.Info("Fetching logs from blocks", "fromBlock", fromBlockNumber, "toBlock", toBlockNumber)
-		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.Misc.L2StandardBridgeBot))
+		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.Misc.L2StandardBridgeBot), core.WithdrawToEventSig())
 		if err != nil {
 			log.Error("eth_getLogs", "error", err)
 			continue
@@ -295,13 +293,14 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 }
 
 // getLogs returns the logs for a given contract address and block range
-func getLogs(client *core.ClientExt, fromBlock *big.Int, toBlock *big.Int, contractAddress common.Address) ([]types.Log, error) {
+func getLogs(client *core.ClientExt, fromBlock *big.Int, toBlock *big.Int, contractAddress common.Address, eventSig common.Hash) ([]types.Log, error) {
 	query := ethereum.FilterQuery{
 		FromBlock: fromBlock,
 		ToBlock:   toBlock,
 		Addresses: []common.Address{
 			contractAddress,
 		},
+		Topics: [][]common.Hash{[]common.Hash{eventSig}},
 	}
 	return client.FilterLogs(context.Background(), query)
 }
