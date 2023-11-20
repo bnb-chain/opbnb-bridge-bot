@@ -350,7 +350,7 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
 func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, error) {
 	l2ScannedBlock := core.L2ScannedBlock{Number: 0}
-	result := db.First(&l2ScannedBlock)
+	result := db.Last(&l2ScannedBlock)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			db.Create(&l2ScannedBlock)
