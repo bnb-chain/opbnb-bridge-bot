@@ -62,7 +62,8 @@ contract L2StandardBridgeBot is Ownable {
 
     // withdrawFee withdraw the delegation fee vault to _recipient address, only owner can call this function.
     function withdrawFee(address _recipient) external onlyOwner {
-        payable(_recipient).transfer(address(this).balance);
+        (bool sent, ) = _recipient.call{ value: address(this).balance }("");
+        require(sent, "Failed to send Ether");
     }
 
     // setDelegationFee set the delegation fee, only owner can call this function.
