@@ -12,6 +12,17 @@ The `L2StandardBridgeBot` contract provides a `withdrawTo` function, which charg
 
 The off-chain bot watches the `L2StandardBridgeBot.WithdrawTo` events and based on these events, re-constructs the corresponding withdrawals. We name these withdrawals as **bot-delegated withdrawals**. As time go out of the bot-delegated withdrawal's proven and finalized time window, our bot will send proven and finalized transactions to complete the entire withdrawal process.
 
+references
+- contracts
+    - [L2StandardBridge.sol](https://github.com/bnb-chain/opbnb/blob/v0.2.2/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol#L105-L129) which concludes the `withdrawTo` function.
+      - opBNB Mainnet [address](https://opbnbscan.com/address/0x4200000000000000000000000000000000000010).
+      - opBNB Testnet [address](https://testnet.opbnbscan.com/address/0x4200000000000000000000000000000000000010)
+    - [OptimismPortal.sol](https://github.com/bnb-chain/opbnb/blob/v0.2.2/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) which concludes the `proveWithdrawalTransaction` and `finalizeWithdrawalTransaction` functions.
+      - BSC Mainnet [address](https://bscscan.com/address/0x1876EA7702C0ad0C6A2ae6036DE7733edfBca519).
+      - BSC Testnet [address](https://testnet.bscscan.com/address/0x4386c8abf2009ac0c263462da568dd9d46e52a31)
+- [opbnb bridge](https://opbnb-bridge.bnbchain.org)
+- [tutorial](https://github.com/ethereum-optimism/optimism-tutorial/blob/main/cross-dom-bridge-erc20/README.md) of interacting with bridge with js-sdk.
+
 ## User Guide
 
 ### Getting Started at opBNB testnet
