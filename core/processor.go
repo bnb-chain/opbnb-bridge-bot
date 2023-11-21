@@ -2,21 +2,17 @@ package core
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"math/big"
-	"os"
-
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"math/big"
 )
 
 type Processor struct {
@@ -25,7 +21,7 @@ type Processor struct {
 	L1Client *ClientExt
 	L2Client *ClientExt
 
-	L1Contracts config.L1Contracts
+	cfg         Config
 	L2Contracts config.L2Contracts
 }
 
@@ -38,17 +34,10 @@ func NewProcessor(
 	log = log.New("processor", "Processor")
 
 	l2Contracts := config.L2ContractsFromPredeploys()
-	return &Processor{log, l1Client, l2Client, cfg.L1Contracts, l2Contracts}
+	return &Processor{log, l1Client, l2Client, cfg, l2Contracts}
 }
 
-func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2ContractEvent) error {
-	receipt, err := b.L2Client.TransactionReceipt(context.Background(), common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
-	if err != nil {
-		return err
-	}
-
-	l2BlockNumber := receipt.BlockNumber
-
+func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
 	// event[i-5]: WithdrawalInitiated
@@ -58,7 +47,7 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
 	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
-		return fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
+		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
 	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
@@ -67,16 +56,31 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	messagePassedEvent, err := b.toMessagePassed(messagePassedLog)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	withdrawalTx, err := b.toLowLevelMessage(sentMessageEvent, messagePassedEvent)
 	if err != nil {
-		return fmt.Errorf("toLowLevelMessage err: %v", err)
+		return nil, fmt.Errorf("toLowLevelMessage err: %v", err)
+	}
+
+	return withdrawalTx, nil
+}
+
+func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2ContractEvent) error {
+	receipt, err := b.L2Client.TransactionReceipt(context.Background(), common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+	if err != nil {
+		return err
+	}
+
+	l2BlockNumber := receipt.BlockNumber
+	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
+	if err != nil {
+		return fmt.Errorf("toWithdrawal err: %v", err)
 	}
 
 	hash, err := b.hashWithdrawal(withdrawalTx)
@@ -125,33 +129,22 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 		return err
 	}
 
-	// Retrieve the private key from the environment variable OPBNB_BRIDGE_BOT_PRIVKEY
-	botPrivkey, err := crypto.HexToECDSA(os.Getenv("OPBNB_BRIDGE_BOT_PRIVKEY"))
+	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
-		return fmt.Errorf("invalid $OPBNB_BRIDGE_BOT_PRIVKEY: %w", err)
+		return err
 	}
-
-	pubKey := botPrivkey.Public()
-	pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
-	if !ok {
-		return errors.New("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	}
-	pubKeyBytes := crypto.FromECDSAPub(pubKeyECDSA)
-	pubKeyHash := crypto.Keccak256(pubKeyBytes[1:])[12:]
-	fromAddress := common.HexToAddress(hexutil.Encode(pubKeyHash))
-
-	const gasPrice = 9000000000 // 9 GWei
 
 	optimismPortalTransactor, _ := bindings.NewOptimismPortalTransactor(
-		b.L1Contracts.OptimismPortalProxy,
+		b.cfg.L1Contracts.OptimismPortalProxy,
 		b.L1Client,
 	)
 	signedTx, err := optimismPortalTransactor.ProveWithdrawalTransaction(
 		&bind.TransactOpts{
-			From:     fromAddress,
-			GasPrice: big.NewInt(gasPrice),
+			From:     *signerAddress,
+			GasPrice: gasPrice,
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), botPrivkey)
+				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), signerPrivkey)
 			},
 		},
 		*withdrawalTx,
@@ -174,34 +167,9 @@ func (b *Processor) FinalizeMessage(botDelegatedWithdrawToEvent *L2ContractEvent
 		return err
 	}
 
-	// Events flow:
-	//
-	// event[i-5]: WithdrawalInitiated
-	// event[i-4]: ETHBridgeInitiated
-	// event[i-3]: MessagePassed
-	// event[i-2]: SentMessage
-	// event[i-1]: SentMessageExtension1
-	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
-		return fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
-	}
-
-	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
-	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-2]
-	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-1]
-
-	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
+	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
 	if err != nil {
-		return err
-	}
-	messagePassedEvent, err := b.toMessagePassed(messagePassedLog)
-	if err != nil {
-		return err
-	}
-
-	withdrawalTx, err := b.toLowLevelMessage(sentMessageEvent, messagePassedEvent)
-	if err != nil {
-		return fmt.Errorf("toLowLevelMessage err: %v", err)
+		return fmt.Errorf("toWithdrawal err: %v", err)
 	}
 
 	l1ChainId, err := b.L1Client.ChainID(context.Background())
@@ -209,33 +177,22 @@ func (b *Processor) FinalizeMessage(botDelegatedWithdrawToEvent *L2ContractEvent
 		return err
 	}
 
-	// Retrieve the private key from the environment variable OPBNB_BRIDGE_BOT_PRIVKEY
-	botPrivkey, err := crypto.HexToECDSA(os.Getenv("OPBNB_BRIDGE_BOT_PRIVKEY"))
+	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
-		return fmt.Errorf("invalid $OPBNB_BRIDGE_BOT_PRIVKEY: %w", err)
+		return err
 	}
-
-	pubKey := botPrivkey.Public()
-	pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
-	if !ok {
-		return errors.New("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	}
-	pubKeyBytes := crypto.FromECDSAPub(pubKeyECDSA)
-	pubKeyHash := crypto.Keccak256(pubKeyBytes[1:])[12:]
-	fromAddress := common.HexToAddress(hexutil.Encode(pubKeyHash))
-
-	const gasPrice = 9000000000 // 9 GWei
 
 	optimismPortalTransactor, _ := bindings.NewOptimismPortalTransactor(
-		b.L1Contracts.OptimismPortalProxy,
+		b.cfg.L1Contracts.OptimismPortalProxy,
 		b.L1Client,
 	)
 	signedTx, err := optimismPortalTransactor.FinalizeWithdrawalTransaction(
 		&bind.TransactOpts{
-			From:     fromAddress,
-			GasPrice: big.NewInt(gasPrice),
+			From:     *signerAddress,
+			GasPrice: gasPrice,
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), botPrivkey)
+				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), signerPrivkey)
 			},
 		},
 		*withdrawalTx,
@@ -492,7 +449,7 @@ func (b *Processor) getMessagePassedMessagesFromReceipt(receipt *types.Receipt) 
 
 func (b *Processor) getL2OutputAfter(l2BlockNumber *big.Int) (*big.Int, *bindings.TypesOutputProposal, error) {
 	l2OutputOracleCaller, err := bindings.NewL2OutputOracleCaller(
-		b.L1Contracts.L2OutputOracleProxy,
+		b.cfg.L1Contracts.L2OutputOracleProxy,
 		b.L1Client,
 	)
 	if err != nil {
@@ -535,7 +492,7 @@ func (b *Processor) toLowLevelMessage(
 	withdrawalTx := bindings.TypesWithdrawalTransaction{
 		Nonce:    messagePassedEvent.Nonce,
 		Sender:   b.L2Contracts.L2CrossDomainMessenger,
-		Target:   b.L1Contracts.L1CrossDomainMessengerProxy,
+		Target:   b.cfg.L1Contracts.L1CrossDomainMessengerProxy,
 		Value:    sentMessageEvent.Value,
 		GasLimit: messagePassedEvent.GasLimit,
 		Data:     relayMessageCalldata,

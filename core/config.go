@@ -1,8 +1,14 @@
 package core
 
 import (
+	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"os"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -19,6 +25,7 @@ type Config struct {
 	RPCs        config.RPCsConfig  `toml:"rpcs"`
 	DB          config.DBConfig    `toml:"db"`
 	L1Contracts config.L1Contracts `toml:"l1-contracts"`
+	Signer      SignerConfig       `toml:"signer"`
 }
 
 type MiscConfig struct {
@@ -27,6 +34,11 @@ type MiscConfig struct {
 	ChallengeTimeWindow int64  `toml:"challenge-time-window"`
 	ConfirmBlocks       int64  `toml:"confirm-blocks"`
 	LogFilterBlockRange int64  `toml:"log-filter-block-range"`
+}
+
+type SignerConfig struct {
+	Privkey  string `toml:"privkey"`
+	GasPrice int64  `toml:"gas-price"`
 }
 
 // LoadConfig loads the `bot.toml` config file from a given path
@@ -61,6 +73,31 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, errors.New("challenge-time-window must be set")
 	}
 
+	if _, _, err = conf.SignerKeyPair(); err != nil {
+		return conf, err
+	}
+	if conf.Signer.GasPrice == 0 {
+		return conf, errors.New("gas-price must be set")
+	}
+
 	log.Info("loaded config")
 	return conf, nil
+}
+
+func (c *Config) SignerKeyPair() (*ecdsa.PrivateKey, *common.Address, error) {
+	privkey, err := crypto.HexToECDSA(c.Signer.Privkey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse privkey: %w", err)
+	}
+
+	pubKey := privkey.Public()
+	pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, nil, errors.New("failed to cast public key to ECDSA")
+	}
+
+	pubKeyBytes := crypto.FromECDSAPub(pubKeyECDSA)
+	pubKeyHash := crypto.Keccak256(pubKeyBytes[1:])[12:]
+	address := common.HexToAddress(hexutil.Encode(pubKeyHash))
+	return privkey, &address, nil
 }
