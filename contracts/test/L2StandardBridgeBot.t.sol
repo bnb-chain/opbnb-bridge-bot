@@ -14,6 +14,8 @@ contract L2StandardBridgeBotTest is Test {
     uint withdrawFee = 10000;
     address constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
 
+    event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
+
     function setUp() public {
         opbnbMainnetFork = vm.createFork("https://opbnb-testnet-rpc.bnbchain.org");
         vm.selectFork(opbnbMainnetFork);
@@ -35,6 +37,8 @@ contract L2StandardBridgeBotTest is Test {
     function test_withdrawBNB() public {
         vm.prank(user);
         uint amount = 100;
+        vm.expectEmit(true, false, false, true);
+        emit WithdrawTo(user, LEGACY_ERC20_ETH, user, amount, 200000, "");
         bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
     }
 
@@ -45,6 +49,8 @@ contract L2StandardBridgeBotTest is Test {
         vm.prank(user);
         IERC20(usdt).approve(address(bot), amount);
         vm.prank(user);
+        vm.expectEmit(true, false, false, true);
+        emit WithdrawTo(user, usdt, user, amount, 200000, "");
         bot.withdrawTo{value: withdrawFee}(usdt, user, amount, 200000, "");
     }
 }
