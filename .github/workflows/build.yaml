@@ -24,7 +24,7 @@ jobs:
     - name: Make build-go
       run: make build-go
 
-  'build-solidity and test':
+  'build-test-solidity':
     name: make build-solidity
     runs-on: ubuntu-latest
     steps:
