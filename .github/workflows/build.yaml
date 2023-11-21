@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    #     branches: [ main ]
+    #   pull_request:
+    #     branches: [ main ]
+
+jobs:
+
+  'build-go':
+    name: make build-go
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.21
+
+    - name: Check out
+      uses: actions/checkout@v3
+
+    - name: Make build-go
+      run: make build-go
+
+  'build-solidity':
+    name: make build-solidity
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check out
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Make build-solidity
+      run: cd contracts && forge build
