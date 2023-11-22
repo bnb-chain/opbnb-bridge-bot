@@ -4,9 +4,27 @@
 
 The opbnb-bridge-bot project primarily maintains a Layer2 contract named `L2StandardBridgeBot`. This contract, when called, initiates withdrawal transactions and collects a fixed fee for every withdrawals. The project promises that after the withdrawal transaction has can be proven and finalized after the required time window, a third-party account would complete the corresponding L1 proven withdrawal transactions and L1 finalized withdrawal transactions, thus completing the entire withdrawal process.
 
+## Motivation
+
+![image](./assets/optimism-withdraw-flow.png)
+
+A withdrawal request must be completed in three steps:
+
+1. Send a L2 initiating transaction
+2. Send the L1 proven transaction after the proposer submits the next L2 output root
+3. Send L1 finalized transaction after the challenge window has passed
+
+Completing these three steps might not be a good user experience. Firstly, users need to send 3 transactions; secondly, they need to wait 2 periods before sending the next transaction.
+
+### See also
+
+- opBNB testnet bridge: https://opbnb-testnet-bridge.bnbchain.org
+
+- withdrawal example: https://testnet.opbnbscan.com/tx/0xadb6b8d8bffb4dc7177ef1e27e202035f0861a71521c3cdff66a4aeb4464e501
+
 ## Design Principle and Working Mechanism
 
-This project consists of an on-chain contract `contracts/src/L2StandardBridgeBot.sol` and an off-chain bot.
+This project consists of an on-chain contract [`contracts/src/L2StandardBridgeBot.sol`](contracts/src/L2StandardBridgeBot.sol) and [an off-chain bot](./cmd/bot/run.go#L67-L68).
 
 The `L2StandardBridgeBot` contract provides a `withdrawTo` function, which charges a fixed fee for every execution and then forwards the call to the `L2StandardBridge.withdraw`.
 
