@@ -1,6 +1,7 @@
 pragma solidity 0.8.20;
 
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 interface IL2StandardBridge {
     function withdrawTo(
@@ -45,6 +46,11 @@ contract L2StandardBridgeBot is Ownable {
         } else {
             require(msg.value == delegationFee, "BEP20 withdrawal: msg.value does not equal to delegationFee");
 
+            IERC20 l2Token = IERC20(_l2Token);
+            bool approveSuccess = l2Token.approve(L2_STANDARD_BRIDGE_ADDRESS, _amount + l2Token.allowance(address(this), L2_STANDARD_BRIDGE_ADDRESS));
+            require(approveSuccess, "BEP20 withdrawal: approve failed");
+            bool transferSuccess = l2Token.transferFrom(msg.sender, address(this), _amount);
+            require(transferSuccess, "BEP20 withdrawal: transferFrom failed");
             L2_STANDARD_BRIDGE.withdrawTo{value: 0}(_l2Token, _to, _amount, _minGasLimit, _extraData);
         }
 

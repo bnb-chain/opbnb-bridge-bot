@@ -24,7 +24,7 @@ jobs:
     - name: Make build-go
       run: make build-go
 
-  'build-solidity':
+  'build-test-solidity':
     name: make build-solidity
     runs-on: ubuntu-latest
     steps:
@@ -38,4 +38,4 @@ jobs:
       uses: foundry-rs/foundry-toolchain@v1
 
     - name: Make build-solidity
-      run: cd contracts && forge build
+      run: cd contracts && forge build && forge test
