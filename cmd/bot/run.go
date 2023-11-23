@@ -94,7 +94,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
 
 	unprovens := make([]core.L2ContractEvent, 0)
-	result := db.Order("id asc").Where("proven = false AND block_time < ?", maxBlockTime).Limit(limit).Find(&unprovens)
+	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
 		log.Error("failed to query l2_contract_events", "error", result.Error)
 		return
@@ -108,15 +108,21 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				result := db.Model(&unproven).Update("proven", true)
 				if result.Error != nil {
 					log.Error("failed to update proven l2_contract_events", "error", result.Error)
-					return
 				}
 			} else if strings.Contains(err.Error(), "L2OutputOracle: cannot get output for a block that has not been proposed") {
 				// Since the unproven withdrawals are sorted by the on-chain order, we can break here because we know
 				// that the subsequent of the withdrawals are not ready to be proven yet.
 				return
+			} else if strings.Contains(err.Error(), "execution reverted") {
+				// Proven transaction reverted, mark it with the failure reason
+				result := db.Model(&unproven).Update("failure_reason", err.Error())
+				if result.Error != nil {
+					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+				}
 			} else {
-				// TODO handle other errors
-				log.Error("FinalizeMessage", "error", err.Error())
+				// non-revert error, stop processing the subsequent withdrawals
+				log.Error("ProveWithdrawalTransaction", "non-revert error", err.Error())
+				return
 			}
 		}
 	}
@@ -128,7 +134,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
 
 	unfinalizeds := make([]core.L2ContractEvent, 0)
-	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ?", maxBlockTime).Limit(limit).Find(&unfinalizeds)
+	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
 		log.Error("failed to query l2_contract_events", "error", result.Error)
 		return
@@ -142,14 +148,20 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				result := db.Model(&unfinalized).Update("finalized", true)
 				if result.Error != nil {
 					log.Error("failed to update finalized l2_contract_events", "error", result.Error)
-					return
 				}
 			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") || strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
 				// Continue to handle the subsequent unfinalized withdrawals
 				continue
+			} else if strings.Contains(err.Error(), "execution reverted") {
+				// Finalized transaction reverted, mark it with the failure reason
+				result := db.Model(&unfinalized).Update("failure_reason", err.Error())
+				if result.Error != nil {
+					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+				}
 			} else {
-				// TODO handle other errors
-				log.Error("FinalizeMessage", "error", err.Error())
+				// non-revert error, stop processing the subsequent withdrawals
+				log.Error("FinalizedMessage", "non-revert error", err.Error())
+				return
 			}
 		}
 	}
