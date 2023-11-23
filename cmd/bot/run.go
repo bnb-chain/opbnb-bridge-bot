@@ -22,7 +22,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func runCommand(ctx *cli.Context) error {
+func RunCommand(ctx *cli.Context) error {
 	// Config logger
 	logger := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "bot")
 	oplog.SetGlobalLogHandler(logger.GetHandler())
@@ -76,65 +76,80 @@ func runCommand(ctx *cli.Context) error {
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	ticker := time.NewTicker(3 * time.Second)
-	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
-	limit := 1000
-
 	for {
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
 			return
+		default:
+			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
+			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
 		}
+	}
+}
 
-		unprovens := make([]core.L2ContractEvent, 0)
-		if result := db.Order("id asc").Where("proven = false").Limit(limit).Find(&unprovens); result.Error != nil {
-			log.Error("querying l2_contract_events", "error", result.Error)
-			continue
-		} else if len(unprovens) > 0 {
-			for _, unproven := range unprovens {
-				if unproven.BlockTime+cfg.Misc.ProposeTimeWindow < time.Now().Unix() {
-					err := processor.ProveWithdrawalTransaction(&unproven)
-					if err != nil {
-						if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
-							// The withdrawal has already proven, mark it
-							unproven.Proven = true
-							result := db.Save(&unproven)
-							if result.Error != nil {
-								log.Crit("update proven l2_contract_events", "error", result.Error)
-							}
-						} else if strings.Contains(err.Error(), "L2OutputOracle: cannot get output for a block that has not been proposed") {
-							break
-						} else {
-							log.Crit("ProveWithdrawalTransaction", "error", err.Error())
-						}
-					}
+func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
+	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
+	limit := 1000
+	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
+
+	unprovens := make([]core.L2ContractEvent, 0)
+	result := db.Order("id asc").Where("proven = false AND block_time < ?", maxBlockTime).Limit(limit).Find(&unprovens)
+	if result.Error != nil {
+		log.Error("failed to query l2_contract_events", "error", result.Error)
+		return
+	}
+
+	for _, unproven := range unprovens {
+		err := processor.ProveWithdrawalTransaction(ctx, &unproven)
+		if err != nil {
+			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
+				// The withdrawal has already proven, mark it
+				result := db.Model(&unproven).Update("proven", true)
+				if result.Error != nil {
+					log.Error("failed to update proven l2_contract_events", "error", result.Error)
+					return
 				}
+			} else if strings.Contains(err.Error(), "L2OutputOracle: cannot get output for a block that has not been proposed") {
+				// Since the unproven withdrawals are sorted by the on-chain order, we can break here because we know
+				// that the subsequent of the withdrawals are not ready to be proven yet.
+				return
+			} else {
+				// TODO handle other errors
+				log.Error("FinalizeMessage", "error", err.Error())
 			}
 		}
+	}
+}
 
-		unfinalizeds := make([]core.L2ContractEvent, 0)
-		if result := db.Order("block_time asc").Where("proven = true AND finalized = false").Limit(limit).Find(&unfinalizeds); result.Error != nil {
-			log.Error("querying l2_contract_events", "error", result.Error)
-			continue
-		} else if len(unfinalizeds) > 0 {
-			for _, unfinalized := range unfinalizeds {
-				if unfinalized.BlockTime+cfg.Misc.ChallengeTimeWindow < time.Now().Unix() {
-					err := processor.FinalizeMessage(&unfinalized)
-					if err != nil {
-						if strings.Contains(err.Error(), "OptimismPortal: withdrawal has already been finalized") {
-							// The withdrawal has already finalized, mark it
-							unfinalized.Finalized = true
-							result := db.Save(&unfinalized)
-							if result.Error != nil {
-								log.Crit("update finalized l2_contract_events", "error", result.Error)
-							}
-						} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") || strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
-							break
-						} else {
-							log.Crit("FinalizeMessage", "error", err.Error())
-						}
-					}
+func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
+	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
+	limit := 1000
+	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
+
+	unfinalizeds := make([]core.L2ContractEvent, 0)
+	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ?", maxBlockTime).Limit(limit).Find(&unfinalizeds)
+	if result.Error != nil {
+		log.Error("failed to query l2_contract_events", "error", result.Error)
+		return
+	}
+
+	for _, unfinalized := range unfinalizeds {
+		err := processor.FinalizeMessage(ctx, &unfinalized)
+		if err != nil {
+			if strings.Contains(err.Error(), "OptimismPortal: withdrawal has already been finalized") {
+				// The withdrawal has already finalized, mark it
+				result := db.Model(&unfinalized).Update("finalized", true)
+				if result.Error != nil {
+					log.Error("failed to update finalized l2_contract_events", "error", result.Error)
+					return
 				}
+			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") || strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
+				// Continue to handle the subsequent unfinalized withdrawals
+				continue
+			} else {
+				// TODO handle other errors
+				log.Error("FinalizeMessage", "error", err.Error())
 			}
 		}
 	}
