@@ -56,7 +56,7 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Name:        "run",
 				Flags:       flags,
 				Description: "Runs the indexing service",
-				Action:      runCommand,
+				Action:      RunCommand,
 			},
 			{
 				Name:        "version",

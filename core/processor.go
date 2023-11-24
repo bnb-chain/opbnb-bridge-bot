@@ -71,8 +71,8 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, r
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2ContractEvent) error {
-	receipt, err := b.L2Client.TransactionReceipt(context.Background(), common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *L2ContractEvent) error {
+	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 		return fmt.Errorf("GetProof err: %v", err)
 	}
 
-	outputProposalBlock, err := b.L2Client.HeaderByNumber(context.Background(), outputProposal.L2BlockNumber)
+	outputProposalBlock, err := b.L2Client.HeaderByNumber(ctx, outputProposal.L2BlockNumber)
 	if err != nil {
 		return fmt.Errorf("get output proposal block error: %v", err)
 	}
@@ -161,8 +161,8 @@ func (b *Processor) ProveWithdrawalTransaction(botDelegatedWithdrawToEvent *L2Co
 }
 
 // FinalizeMessage https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1611
-func (b *Processor) FinalizeMessage(botDelegatedWithdrawToEvent *L2ContractEvent) error {
-	receipt, err := b.L2Client.TransactionReceipt(context.Background(), common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *L2ContractEvent) error {
+	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (b *Processor) FinalizeMessage(botDelegatedWithdrawToEvent *L2ContractEvent
 		return fmt.Errorf("toWithdrawal err: %v", err)
 	}
 
-	l1ChainId, err := b.L1Client.ChainID(context.Background())
+	l1ChainId, err := b.L1Client.ChainID(ctx)
 	if err != nil {
 		return err
 	}
