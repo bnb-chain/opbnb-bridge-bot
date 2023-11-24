@@ -53,4 +53,44 @@ contract L2StandardBridgeBotTest is Test {
         emit WithdrawTo(user, usdt, user, amount, 200000, "");
         bot.withdrawTo{value: withdrawFee}(usdt, user, amount, 200000, "");
     }
+
+    function test_RevertWithdrawFeeNotOwner() public {
+        vm.prank(user);
+        vm.expectRevert();
+        bot.withdrawFee(user);
+    }
+
+    function test_WithdrawFee() public {
+        vm.prank(deployer);
+        bot.withdrawFee(user);
+    }
+
+    function test_RevertWithdrawFeeToL1NotOwner() public {
+        vm.prank(user);
+        vm.expectRevert();
+        bot.withdrawFeeToL1(user, 0, "");
+    }
+
+    function test_RevertWithdrawFeeToL1InsufficientBalance() public {
+        vm.prank(deployer);
+        vm.expectRevert();
+        bot.withdrawFeeToL1(user, 0, "");
+    }
+
+    function test_WithdrawFeeToL1() public {
+        // Ensure the vault has sufficient balance
+        uint256 prevBalance = address(bot).balance;
+
+        vm.prank(user);
+        uint amount = 0;
+        bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
+        bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
+
+        uint256 postBalance = address(bot).balance;
+        assertEq(postBalance, prevBalance + withdrawFee * 2);
+
+        // WithdrawFeeToL1
+        vm.prank(deployer);
+        bot.withdrawFeeToL1(user, 0, "");
+    }
 }
