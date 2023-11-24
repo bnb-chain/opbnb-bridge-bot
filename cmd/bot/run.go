@@ -79,11 +79,10 @@ func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gor
 	for {
 		select {
 		case <-ticker.C:
-		case <-ctx.Done():
-			return
-		default:
 			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
 			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
+		case <-ctx.Done():
+			return
 		}
 	}
 }
