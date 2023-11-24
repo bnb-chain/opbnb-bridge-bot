@@ -93,20 +93,24 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return fmt.Errorf("hashMesaageHash err: %v", err)
 	}
 
-	l2OutputIndex, outputProposal, err := b.getL2OutputAfter(l2BlockNumber)
+	l2OutputIndex, l2OutputProposal, err := b.getLatestL2OutputProposal()
 	if err != nil {
 		return err
 	}
+	if l2OutputProposal.L2BlockNumber.Uint64() < l2BlockNumber.Uint64() {
+		return errors.New("L2OutputOracle: cannot get output for a block that has not been proposed")
+	}
+
 	accountResult, err := b.L2Client.GetProof(
 		b.L2Contracts.L2ToL1MessagePasser,
 		[]string{"0x" + messageSlot},
-		outputProposal.L2BlockNumber,
+		l2OutputProposal.L2BlockNumber,
 	)
 	if err != nil {
 		return fmt.Errorf("GetProof err: %v", err)
 	}
 
-	outputProposalBlock, err := b.L2Client.HeaderByNumber(ctx, outputProposal.L2BlockNumber)
+	outputProposalBlock, err := b.L2Client.HeaderByNumber(ctx, l2OutputProposal.L2BlockNumber)
 	if err != nil {
 		return fmt.Errorf("get output proposal block error: %v", err)
 	}
@@ -447,7 +451,7 @@ func (b *Processor) getMessagePassedMessagesFromReceipt(receipt *types.Receipt) 
 	return messagePassedEvents, nil
 }
 
-func (b *Processor) getL2OutputAfter(l2BlockNumber *big.Int) (*big.Int, *bindings.TypesOutputProposal, error) {
+func (b *Processor) getLatestL2OutputProposal() (*big.Int, *bindings.TypesOutputProposal, error) {
 	l2OutputOracleCaller, err := bindings.NewL2OutputOracleCaller(
 		b.cfg.L1Contracts.L2OutputOracleProxy,
 		b.L1Client,
@@ -457,7 +461,7 @@ func (b *Processor) getL2OutputAfter(l2BlockNumber *big.Int) (*big.Int, *binding
 	}
 
 	// [getBedrockMessageProof](https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1916)
-	l2OutputIndex, err := l2OutputOracleCaller.GetL2OutputIndexAfter(&bind.CallOpts{}, l2BlockNumber)
+	l2OutputIndex, err := l2OutputOracleCaller.LatestOutputIndex(&bind.CallOpts{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("GetL2OutputIndexAfter err: %v", err)
 	}
