@@ -75,19 +75,16 @@ contract L2StandardBridgeBot is Ownable {
     }
 
     // withdrawFeeToL1 withdraw the delegation fee vault to _recipient address on L1, only owner can call this function.
-    //
-    // NOTE: Since the `withdrawTo` function is defined as external and `_extraData` is `bytes calldata`, the
-    // `_extraData` cannot be mock from `bytes memory` by the caller. See also https://github.com/ethereum/solidity/issues/12778
-    function withdrawFeeToL1(address _recipient, bytes calldata _extraData) external onlyOwner {
+    function withdrawFeeToL1(address _recipient, uint32 _minGasLimit, bytes calldata _extraData) external onlyOwner {
         uint256 _balance = address(this).balance;
-        require(_balance > delegationFee, "fee vault balance is insufficient to pay the required amount");
+        require(_balance > delegationFee, "fee vault balance is insufficient to pay the required delegation fee");
 
         uint256 _amount = _balance - delegationFee;
         this.withdrawTo{ value: _balance }(
             LEGACY_ERC20_ETH,
             _recipient,
             _amount,
-            160000 ,        // constant acceptable minGasLimit is fine
+            _minGasLimit,
             _extraData
         );
     }
