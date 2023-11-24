@@ -143,7 +143,10 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 					log.Error("failed to update finalized l2_contract_events", "error", result.Error)
 					return
 				}
-			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") || strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
+			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") {
+				log.Error("detected a unproven withdrawal when send finalized transaction", "withdrawal", unfinalized)
+				continue
+			} else if strings.Contains(err.Error(), "OptimismPortal: proven withdrawal finalization period has not elapsed") {
 				// Continue to handle the subsequent unfinalized withdrawals
 				continue
 			} else {
