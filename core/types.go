@@ -14,4 +14,5 @@ type L2ContractEvent struct {
 	EventSignature  string `gorm:"type:varchar(256);not null"`
 	Proven          bool   `gorm:"type:boolean;not null;default:false"`
 	Finalized       bool   `gorm:"type:boolean;not null;default:false"`
+	FailureReason   string `gorm:"type:text"`
 }
