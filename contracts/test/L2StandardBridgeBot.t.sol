@@ -13,8 +13,11 @@ contract L2StandardBridgeBotTest is Test {
     address user = 0x3977f9B1F4912a783B44aBa813dA388AC73a1428;
     uint withdrawFee = 10000;
     address constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
+    address constant L2_STANDARD_BRIDGE = 0x4200000000000000000000000000000000000010;
 
     event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
+
+    event SentMessageExtension1(address indexed sender , uint256 value);
 
     function setUp() public {
         opbnbMainnetFork = vm.createFork("https://opbnb-testnet-rpc.bnbchain.org");
@@ -83,14 +86,18 @@ contract L2StandardBridgeBotTest is Test {
 
         vm.prank(user);
         uint amount = 0;
-        bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
-        bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
+        uint round = 10;
+        for (uint i = 0; i < round; i++) {
+            bot.withdrawTo{value: withdrawFee + amount}(LEGACY_ERC20_ETH, user, amount, 200000, "");
+        }
 
         uint256 postBalance = address(bot).balance;
-        assertEq(postBalance, prevBalance + withdrawFee * 2);
+        assertEq(postBalance, prevBalance + withdrawFee * round);
 
         // WithdrawFeeToL1
         vm.prank(deployer);
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtension1(L2_STANDARD_BRIDGE, postBalance - withdrawFee);
         bot.withdrawFeeToL1(user, 0, "");
     }
 }
