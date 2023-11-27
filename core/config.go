@@ -24,7 +24,7 @@ type Config struct {
 	RPCs        config.RPCsConfig  `toml:"rpcs"`
 	DB          config.DBConfig    `toml:"db"`
 	L1Contracts config.L1Contracts `toml:"l1-contracts"`
-	Signer      SignerConfig       `toml:"signer"`
+	TxSigner    TxSignerConfig     `toml:"tx-signer"`
 }
 
 type MiscConfig struct {
@@ -34,7 +34,7 @@ type MiscConfig struct {
 	LogFilterBlockRange int64  `toml:"log-filter-block-range"`
 }
 
-type SignerConfig struct {
+type TxSignerConfig struct {
 	Privkey  string `toml:"privkey"`
 	GasPrice int64  `toml:"gas-price"`
 }
@@ -70,7 +70,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	if _, _, err = conf.SignerKeyPair(); err != nil {
 		return conf, err
 	}
-	if conf.Signer.GasPrice == 0 {
+	if conf.TxSigner.GasPrice == 0 {
 		return conf, errors.New("gas-price must be set")
 	}
 
@@ -79,7 +79,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 }
 
 func (c *Config) SignerKeyPair() (*ecdsa.PrivateKey, *common.Address, error) {
-	privkey, err := crypto.HexToECDSA(c.Signer.Privkey)
+	privkey, err := crypto.HexToECDSA(c.TxSigner.Privkey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse privkey: %w", err)
 	}

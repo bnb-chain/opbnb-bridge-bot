@@ -133,7 +133,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
