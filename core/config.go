@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	defaultConfirmBlocks       = 15
 	defaultLogFilterBlockRange = 100
 )
 
@@ -32,7 +31,6 @@ type MiscConfig struct {
 	L2StandardBridgeBot string `toml:"l2-standard-bridge-bot"`
 	ProposeTimeWindow   int64  `toml:"propose-time-window"`
 	ChallengeTimeWindow int64  `toml:"challenge-time-window"`
-	ConfirmBlocks       int64  `toml:"confirm-blocks"`
 	LogFilterBlockRange int64  `toml:"log-filter-block-range"`
 }
 
@@ -58,10 +56,6 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	if conf.Misc.ConfirmBlocks == 0 {
-		log.Info("setting default confirm blocks", "confirm-blocks", defaultConfirmBlocks)
-		conf.Misc.ConfirmBlocks = defaultConfirmBlocks
-	}
 	if conf.Misc.LogFilterBlockRange == 0 {
 		log.Info("setting default log filter block range", "log-filter-block-range", defaultLogFilterBlockRange)
 		conf.Misc.LogFilterBlockRange = defaultLogFilterBlockRange

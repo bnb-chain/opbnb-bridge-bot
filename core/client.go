@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -76,6 +77,18 @@ func (c *ClientExt) CallContract(ctx context.Context, call ethereum.CallMsg, blo
 	}
 
 	return hexutil.Decode(result)
+}
+
+// New methods by block tag
+
+func (c *ClientExt) GetHeaderByTag(ctx context.Context, blockTag string) (*types.Header, error) {
+	var result types.Header
+	err := c.Client.Client().CallContext(ctx, &result, "eth_getHeaderByNumber", blockTag)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 // Needed private utils from geth
