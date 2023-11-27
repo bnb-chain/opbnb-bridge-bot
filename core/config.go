@@ -20,18 +20,19 @@ const (
 )
 
 type Config struct {
-	Misc        MiscConfig         `toml:"misc"`
+	ProposeTimeWindow   int64 `toml:"propose-time-window"`
+	ChallengeTimeWindow int64 `toml:"challenge-time-window"`
+	LogFilterBlockRange int64 `toml:"log-filter-block-range"`
+
 	RPCs        config.RPCsConfig  `toml:"rpcs"`
 	DB          config.DBConfig    `toml:"db"`
 	L1Contracts config.L1Contracts `toml:"l1-contracts"`
+	L2Contracts L2ContractsConfig  `toml:"l2-contracts"`
 	TxSigner    TxSignerConfig     `toml:"tx-signer"`
 }
 
-type MiscConfig struct {
+type L2ContractsConfig struct {
 	L2StandardBridgeBot string `toml:"l2-standard-bridge-bot"`
-	ProposeTimeWindow   int64  `toml:"propose-time-window"`
-	ChallengeTimeWindow int64  `toml:"challenge-time-window"`
-	LogFilterBlockRange int64  `toml:"log-filter-block-range"`
 }
 
 type TxSignerConfig struct {
@@ -56,14 +57,14 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	if conf.Misc.LogFilterBlockRange == 0 {
+	if conf.LogFilterBlockRange == 0 {
 		log.Info("setting default log filter block range", "log-filter-block-range", defaultLogFilterBlockRange)
-		conf.Misc.LogFilterBlockRange = defaultLogFilterBlockRange
+		conf.LogFilterBlockRange = defaultLogFilterBlockRange
 	}
-	if conf.Misc.ProposeTimeWindow == 0 {
+	if conf.ProposeTimeWindow == 0 {
 		return conf, errors.New("propose-time-window must be set")
 	}
-	if conf.Misc.ChallengeTimeWindow == 0 {
+	if conf.ChallengeTimeWindow == 0 {
 		return conf, errors.New("challenge-time-window must be set")
 	}
 

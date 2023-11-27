@@ -90,7 +90,7 @@ func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gor
 func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
+	maxBlockTime := time.Now().Unix() - cfg.ProposeTimeWindow
 
 	unprovens := make([]core.L2ContractEvent, 0)
 	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
@@ -130,7 +130,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
+	maxBlockTime := time.Now().Unix() - cfg.ChallengeTimeWindow
 
 	unfinalizeds := make([]core.L2ContractEvent, 0)
 	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
@@ -213,7 +213,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		// toBlockNumber = min(fromBlockNumber + cfg.Misc.LogFilterBlockRange, finalizedHeader.Number)
-		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.Misc.LogFilterBlockRange))
+		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.LogFilterBlockRange))
 		finalizedHeader, err := client.GetHeaderByTag(context.Background(), "finalized")
 		if err != nil {
 			log.Error("call eth_blockNumber", "error", err)
@@ -229,7 +229,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		log.Info("Fetching logs from blocks", "fromBlock", fromBlockNumber, "toBlock", toBlockNumber)
-		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.Misc.L2StandardBridgeBot), core.WithdrawToEventSig())
+		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.L2Contracts.L2StandardBridgeBot), core.WithdrawToEventSig())
 		if err != nil {
 			log.Error("eth_getLogs", "error", err)
 			continue
