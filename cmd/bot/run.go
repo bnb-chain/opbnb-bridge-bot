@@ -59,7 +59,7 @@ func RunCommand(ctx *cli.Context) error {
 		return fmt.Errorf("failed to migrate l2_contract_events: %w", err)
 	}
 
-	l2ScannedBlock, err := queryL2ScannedBlock(db, &cfg)
+	l2ScannedBlock, err := queryL2ScannedBlock(db)
 	if err != nil {
 		return err
 	}
@@ -212,17 +212,15 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 			timer.Reset(time.Second)
 		}
 
+		// toBlockNumber = min(fromBlockNumber + cfg.Misc.LogFilterBlockRange, finalizedHeader.Number)
 		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.Misc.LogFilterBlockRange))
-		latestNumber, err := client.BlockNumber(context.Background())
+		finalizedHeader, err := client.GetHeaderByTag(context.Background(), "finalized")
 		if err != nil {
 			log.Error("call eth_blockNumber", "error", err)
 			continue
 		}
-
-		if latestNumber < uint64(cfg.Misc.ConfirmBlocks) {
-			toBlockNumber = big.NewInt(0)
-		} else if latestNumber-uint64(cfg.Misc.ConfirmBlocks) < toBlockNumber.Uint64() {
-			toBlockNumber = big.NewInt(int64(latestNumber - uint64(cfg.Misc.ConfirmBlocks)))
+		if toBlockNumber.Uint64() > finalizedHeader.Number.Uint64() {
+			toBlockNumber = finalizedHeader.Number
 		}
 
 		if fromBlockNumber.Uint64() > toBlockNumber.Uint64() {
@@ -314,7 +312,7 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 }
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
-func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, error) {
+func queryL2ScannedBlock(db *gorm.DB) (*core.L2ScannedBlock, error) {
 	l2ScannedBlock := core.L2ScannedBlock{Number: 0}
 	result := db.Order("number desc").Last(&l2ScannedBlock)
 	if result.Error != nil {
@@ -322,12 +320,6 @@ func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, e
 			db.Create(&l2ScannedBlock)
 		} else {
 			return nil, fmt.Errorf("failed to query l2_scanned_blocks: %w", result.Error)
-		}
-	} else {
-		if l2ScannedBlock.Number < cfg.Misc.ConfirmBlocks {
-			l2ScannedBlock.Number = 0
-		} else {
-			l2ScannedBlock.Number -= cfg.Misc.ConfirmBlocks
 		}
 	}
 	return &l2ScannedBlock, nil
