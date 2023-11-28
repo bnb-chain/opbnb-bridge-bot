@@ -138,7 +138,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				// Since the unproven withdrawals are sorted by the on-chain order, we can break here because we know
 				// that the subsequent of the withdrawals are not ready to be proven yet.
 				return
-			} else if strings.Contains(err.Error(), "execution reverted") {
+			} else if strings.Contains(err.Error(), "execution reverted") || strings.Contains(err.Error(), "filtered") {
 				// Proven transaction reverted, mark it with the failure reason
 				result := db.Model(&unproven).Update("failure_reason", err.Error())
 				if result.Error != nil {
@@ -245,7 +245,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 			timer.Reset(time.Second)
 		}
 
-		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.Misc.LogFilterBlockRange))
+		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.L2StandardBridgeBot.LogFilterBlockRange))
 		finalizedHeader, err := client.GetHeaderByTag(context.Background(), "finalized")
 		if err != nil {
 			log.Error("call eth_blockNumber", "error", err)
@@ -261,7 +261,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		log.Info("Fetching logs from blocks", "fromBlock", fromBlockNumber, "toBlock", toBlockNumber)
-		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.Misc.L2StandardBridgeBot), core.WithdrawToEventSig())
+		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.L2StandardBridgeBot.ContractAddress), core.WithdrawToEventSig())
 		if err != nil {
 			log.Error("eth_getLogs", "error", err)
 			continue
