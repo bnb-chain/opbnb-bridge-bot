@@ -20,23 +20,45 @@ const (
 )
 
 type Config struct {
-	Misc        MiscConfig         `toml:"misc"`
-	RPCs        config.RPCsConfig  `toml:"rpcs"`
-	DB          config.DBConfig    `toml:"db"`
-	L1Contracts config.L1Contracts `toml:"l1-contracts"`
-	Signer      SignerConfig       `toml:"signer"`
+	ProposeTimeWindow   int64 `toml:"propose-time-window"`
+	ChallengeTimeWindow int64 `toml:"challenge-time-window"`
+
+	RPCs                config.RPCsConfig         `toml:"rpcs"`
+	DB                  config.DBConfig           `toml:"db"`
+	L1Contracts         config.L1Contracts        `toml:"l1-contracts"`
+	L2StandardBridgeBot L2StandardBridgeBotConfig `toml:"l2-standard-bridge-bot"`
+	TxSigner            TxSignerConfig            `toml:"tx-signer"`
 }
 
-type MiscConfig struct {
-	L2StandardBridgeBot string `toml:"l2-standard-bridge-bot"`
-	ProposeTimeWindow   int64  `toml:"propose-time-window"`
-	ChallengeTimeWindow int64  `toml:"challenge-time-window"`
-	LogFilterBlockRange int64  `toml:"log-filter-block-range"`
-}
-
-type SignerConfig struct {
+type TxSignerConfig struct {
 	Privkey  string `toml:"privkey"`
 	GasPrice int64  `toml:"gas-price"`
+}
+
+type L2StandardBridgeBotConfig struct {
+	// ContractAddress is the address of the L2StandardBridgeBot contract.
+	ContractAddress string `toml:"contract-address"`
+
+	// LogFilterBlockRange is the number of blocks to filter for events
+	LogFilterBlockRange int64 `toml:"log-filter-block-range"`
+
+	// WhitelistL2TokenList is the list of L2 tokens to whitelist for the L2StandardBridgeBot contract.
+	//
+	// L2StandardBridgeBot contract doesn't limit the L2 tokens to be bridged, but this off-chain bot
+	// process only whitelists the tokens in this list and ignore tokens not in this list.
+	//
+	// **IMPORTANT: If this list is empty (by default), all L2 tokens are whitelisted.**
+	WhitelistL2TokenList []string `toml:"whitelist-l2-token-list"`
+
+	// UpperMinGasLimit is the upper limit of the minimum gas limit of the L2StandardBridgeBot contract.
+	//
+	// **IMPORTANT: If this value is 0 (by default), the L2StandardBridgeBot contract doesn't limit the minimum gas limit.**
+	UpperMinGasLimit uint32 `toml:"upper-min-gas-limit"`
+
+	// UpperExtraDataSize is the upper limit of the extra data size of the L2StandardBridgeBot contract.
+	//
+	// **IMPORTANT: If this value is 0 (by default), the L2StandardBridgeBot contract doesn't limit the extra data size.**
+	UpperExtraDataSize uint32 `toml:"upper-extra-data-size"`
 }
 
 // LoadConfig loads the `bot.toml` config file from a given path
@@ -56,21 +78,21 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	if conf.Misc.LogFilterBlockRange == 0 {
+	if conf.L2StandardBridgeBot.LogFilterBlockRange == 0 {
 		log.Info("setting default log filter block range", "log-filter-block-range", defaultLogFilterBlockRange)
-		conf.Misc.LogFilterBlockRange = defaultLogFilterBlockRange
+		conf.L2StandardBridgeBot.LogFilterBlockRange = defaultLogFilterBlockRange
 	}
-	if conf.Misc.ProposeTimeWindow == 0 {
+	if conf.ProposeTimeWindow == 0 {
 		return conf, errors.New("propose-time-window must be set")
 	}
-	if conf.Misc.ChallengeTimeWindow == 0 {
+	if conf.ChallengeTimeWindow == 0 {
 		return conf, errors.New("challenge-time-window must be set")
 	}
 
 	if _, _, err = conf.SignerKeyPair(); err != nil {
 		return conf, err
 	}
-	if conf.Signer.GasPrice == 0 {
+	if conf.TxSigner.GasPrice == 0 {
 		return conf, errors.New("gas-price must be set")
 	}
 
@@ -79,7 +101,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 }
 
 func (c *Config) SignerKeyPair() (*ecdsa.PrivateKey, *common.Address, error) {
-	privkey, err := crypto.HexToECDSA(c.Signer.Privkey)
+	privkey, err := crypto.HexToECDSA(c.TxSigner.Privkey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse privkey: %w", err)
 	}
