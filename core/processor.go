@@ -1,9 +1,12 @@
 package core
 
 import (
+	bindings2 "bnbchain/opbnb-bridge-bot/bindings"
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -12,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"math/big"
 )
 
 type Processor struct {
@@ -77,6 +79,11 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
+	err = b.CheckByFilterOptions(botDelegatedWithdrawToEvent, receipt)
+	if err != nil {
+		return err
+	}
+
 	l2BlockNumber := receipt.BlockNumber
 	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
 	if err != nil {
@@ -133,7 +140,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
@@ -171,6 +178,11 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return err
 	}
 
+	err = b.CheckByFilterOptions(botDelegatedWithdrawToEvent, receipt)
+	if err != nil {
+		return err
+	}
+
 	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
 	if err != nil {
 		return fmt.Errorf("toWithdrawal err: %v", err)
@@ -181,7 +193,7 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
@@ -502,4 +514,54 @@ func (b *Processor) toLowLevelMessage(
 		Data:     relayMessageCalldata,
 	}
 	return &withdrawalTx, nil
+}
+
+func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *L2ContractEvent, receipt *types.Receipt) error {
+	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
+	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
+	indexedArgs := func(arguments abi.Arguments) abi.Arguments {
+		indexedArgs := abi.Arguments{}
+		for _, arg := range arguments {
+			if arg.Indexed {
+				indexedArgs = append(indexedArgs, arg)
+			}
+		}
+		return indexedArgs
+	}
+	err := abi.ParseTopics(&withdrawToEvent, indexedArgs(L2StandardBridgeBotAbi.Events["WithdrawTo"].Inputs), receipt.Logs[botDelegatedWithdrawToEvent.LogIndex].Topics[1:])
+	if err != nil {
+		return fmt.Errorf("parse indexed event arguments from log.topics of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+	}
+
+	err = L2StandardBridgeBotAbi.UnpackIntoInterface(&withdrawToEvent, "WithdrawTo", receipt.Logs[botDelegatedWithdrawToEvent.LogIndex].Data)
+	if err != nil {
+		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+	}
+
+	if len(b.cfg.L2StandardBridgeBot.WhitelistL2TokenList) > 0 {
+		isWhitelisted := false
+		for _, tokenAddress := range b.cfg.L2StandardBridgeBot.WhitelistL2TokenList {
+			if withdrawToEvent.L2Token.Cmp(common.HexToAddress(tokenAddress)) == 0 {
+				isWhitelisted = true
+				break
+			}
+		}
+		if !isWhitelisted {
+			return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawToEvent.L2Token)
+		}
+	}
+
+	if b.cfg.L2StandardBridgeBot.UpperMinGasLimit > 0 {
+		if withdrawToEvent.MinGasLimit > b.cfg.L2StandardBridgeBot.UpperMinGasLimit {
+			return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawToEvent.MinGasLimit)
+		}
+	}
+
+	if b.cfg.L2StandardBridgeBot.UpperExtraDataSize > 0 {
+		if len(withdrawToEvent.ExtraData) > int(b.cfg.L2StandardBridgeBot.UpperExtraDataSize) {
+			return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawToEvent.ExtraData))
+		}
+	}
+
+	return nil
 }
