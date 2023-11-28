@@ -1,0 +1,26 @@
+propose-time-window = 3600
+challenge-time-window = 604800
+
+[rpcs]
+l1-rpc = "$OPBNB_BRIDGE_BOT_L1_RPC"
+l2-rpc = "$OPBNB_BRIDGE_BOT_L2_RPC"
+
+[tx-signer]
+privkey = "$OPBNB_BRIDGE_BOT_PRIVKEY"
+gas-price = 9000000000
+
+[db]
+host = "0.0.0.0"
+port = 5434
+user = "db_username"
+password = "db_password"
+name = "db_name"
+
+[l1-contracts]
+optimism-portal                 = "0x1876EA7702C0ad0C6A2ae6036DE7733edfBca519"
+l2-output-oracle                = "0x153CAB79f4767E2ff862C94aa49573294B13D169"
+l1-cross-domain-messenger       = "0xd95D508f13f7029CCF0fb61984d5dfD11b879c4f"
+
+[l2-standard-bridge-bot]
+contract_address = "$OPBNB_BRIDGE_BOT_L2_STANDARD_BRIDGE_BOT"
+log-filter-block-range = 1000
