@@ -10,11 +10,11 @@ privkey = "$OPBNB_BRIDGE_BOT_PRIVKEY"
 gas-price = 9000000000
 
 [db]
-host = "0.0.0.0"
-port = 3306
-user = "db_username"
-password = "db_password"
-name = "db_name"
+host = "$OPBNB_BRIDGE_BOT_DB_HOST"
+port = $OPBNB_BRIDGE_BOT_DB_PORT
+user = "$OPBNB_BRIDGE_BOT_DB_USER"
+password = "$OPBNB_BRIDGE_BOT_DB_PASSWORD"
+name = "$OPBNB_BRIDGE_BOT_DB_NAME"
 
 [l1-contracts]
 optimism-portal                 = "0x4386c8abf2009ac0c263462da568dd9d46e52a31"
