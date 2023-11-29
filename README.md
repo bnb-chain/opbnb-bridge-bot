@@ -45,7 +45,7 @@ references
 
 ### Getting Started at opBNB testnet
 
-1. Prepare a PostgreSQL database
+1. Prepare a MySQL database
 
 ```
 docker-compose up -d
