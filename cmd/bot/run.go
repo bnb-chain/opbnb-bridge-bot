@@ -59,7 +59,7 @@ func RunCommand(ctx *cli.Context) error {
 		return fmt.Errorf("failed to migrate l2_contract_events: %w", err)
 	}
 
-	l2ScannedBlock, err := queryL2ScannedBlock(db)
+	l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
 	if err != nil {
 		return err
 	}
@@ -297,8 +297,8 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 }
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
-func queryL2ScannedBlock(db *gorm.DB) (*core.L2ScannedBlock, error) {
-	l2ScannedBlock := core.L2ScannedBlock{Number: 0}
+func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
+	l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
 	result := db.Order("number desc").Last(&l2ScannedBlock)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

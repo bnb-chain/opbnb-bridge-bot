@@ -1,5 +1,6 @@
 propose-time-window = 240
 challenge-time-window = 3
+l2-starting-number = $OPBNB_BRIDGE_BOT_L2_STARTING_NUMBER
 
 [rpcs]
 l1-rpc = "$OPBNB_BRIDGE_BOT_L1_RPC"
