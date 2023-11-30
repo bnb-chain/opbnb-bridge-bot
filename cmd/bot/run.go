@@ -93,7 +93,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
 
 	unprovens := make([]core.L2ContractEvent, 0)
-	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
+	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason = ''", maxBlockTime).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
 		log.Error("failed to query l2_contract_events", "error", result.Error)
 		return
@@ -133,7 +133,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
 
 	unfinalizeds := make([]core.L2ContractEvent, 0)
-	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
+	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason = ''", maxBlockTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
 		log.Error("failed to query l2_contract_events", "error", result.Error)
 		return
