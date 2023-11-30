@@ -24,10 +24,6 @@ contract L2StandardBridgeBot is Ownable {
 
     event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
-    receive() external payable { }
-
-    fallback() payable external { }
-
     constructor(address payable _owner, uint256 _delegationFee) Ownable(_owner) {
         delegationFee = _delegationFee;
     }
