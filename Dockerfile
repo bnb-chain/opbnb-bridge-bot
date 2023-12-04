@@ -9,10 +9,12 @@ WORKDIR /app
 
 RUN go mod download
 
+COPY ./bindings    /app/bindings
 COPY ./core        /app/core
 COPY ./cmd         /app/cmd
 COPY ./Makefile    /app/Makefile
-COPY ./bot.toml    /app/bot.toml
+COPY ./bot.testnet.toml    /app/bot.testnet.toml
+COPY ./bot.mainnet.toml    /app/bot.mainnet.toml
 
 WORKDIR /app/
 
@@ -20,9 +22,10 @@ RUN make build-go
 
 FROM alpine:3.18
 
-COPY --from=builder /app/bot /usr/local/bin
-COPY --from=builder /app/bot.toml /app/bot.toml
+COPY --from=builder /app/bot              /usr/local/bin
+COPY --from=builder /app/bot.testnet.toml /bot.testnet.toml
+COPY --from=builder /app/bot.mainnet.toml /bot.mainnet.toml
 
 WORKDIR /app
 
-CMD ["bot", "run", "--config", "/app/bot.toml"]
+CMD ["bot", "run", "--config", "/bot.testnet.toml"]
