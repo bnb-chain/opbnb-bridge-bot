@@ -1,0 +1,34 @@
+propose-time-window = 3600
+challenge-time-window = 604800
+
+[rpcs]
+l1-rpc = "$OPBNB_BRIDGE_BOT_L1_RPC"
+l2-rpc = "$OPBNB_BRIDGE_BOT_L2_RPC"
+
+[tx-signer]
+privkey = "$OPBNB_BRIDGE_BOT_PRIVKEY"
+gas-price = 3000000000 # 3 gwei
+
+[db]
+host = "$OPBNB_BRIDGE_BOT_DB_HOST"
+port = $OPBNB_BRIDGE_BOT_DB_PORT
+user = "$OPBNB_BRIDGE_BOT_DB_USER"
+password = "$OPBNB_BRIDGE_BOT_DB_PASSWORD"
+name = "$OPBNB_BRIDGE_BOT_DB_NAME"
+
+[l1-contracts]
+optimism-portal                 = "0x1876EA7702C0ad0C6A2ae6036DE7733edfBca519"
+l2-output-oracle                = "0x153CAB79f4767E2ff862C94aa49573294B13D169"
+l1-cross-domain-messenger       = "0xd95D508f13f7029CCF0fb61984d5dfD11b879c4f"
+
+[l2-standard-bridge-bot]
+contract_address = "$OPBNB_BRIDGE_BOT_L2_STANDARD_BRIDGE_BOT"
+log-filter-block-range = 1000
+
+# See https://github.com/bnb-chain/opbnb-bridge-tokens/blob/main/opbnb.tokenlist.json
+whitelist-l2-token-list = [
+    "0x7c6b91d9be155a6db01f749217d76ff02a7227f2", # BTCB
+    "0xe7798f023fc62146e8aa1b36da45fb70855a77ea", # ETH
+    "0x50c5725949a6f0c72e6c4a641f24049a917db0cb", # FDUSD
+    "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3"  # USDT
+]
