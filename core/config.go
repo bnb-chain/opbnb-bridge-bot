@@ -20,6 +20,7 @@ const (
 )
 
 type Config struct {
+    L2StartingNumber    int64 `toml:"l2-starting-number"`
 	ProposeTimeWindow   int64 `toml:"propose-time-window"`
 	ChallengeTimeWindow int64 `toml:"challenge-time-window"`
 
