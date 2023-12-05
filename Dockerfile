@@ -27,5 +27,3 @@ COPY --from=builder /app/bot.testnet.toml /bot.testnet.toml
 COPY --from=builder /app/bot.mainnet.toml /bot.mainnet.toml
 
 WORKDIR /app
-
-CMD ["bot", "run", "--config", "/bot.testnet.toml"]
