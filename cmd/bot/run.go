@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -76,18 +77,32 @@ func RunCommand(ctx *cli.Context) error {
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	ticker := time.NewTicker(3 * time.Second)
+	unprovenTombstone := lru.NewCache[uint, time.Time](10000)
+	unfinalizedTombstone := lru.NewCache[uint, time.Time](10000)
 	for {
 		select {
 		case <-ticker.C:
-			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
-			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
+			// In order to avoid re-processing the same withdrawal, we need to check if the pending nonce is
+			// the chain nonce. If they are not equal, it means that there are some pending transactions that
+			// been confirmed yet.
+			_, signerAddress, _ := cfg.SignerKeyPair()
+			if equal, err := isPendingAndChainNonceEqual(l1Client, signerAddress); err != nil {
+				log.Error("failed to check pending and chain nonce", "error", err)
+				continue
+			} else if !equal {
+				log.Info("pending nonce is not equal to chain nonce, skip processing")
+				continue
+			}
+
+			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, unprovenTombstone)
+			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, unfinalizedTombstone)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
+func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
@@ -100,6 +115,11 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	}
 
 	for _, unproven := range unprovens {
+		// In order to avoid re-processing the same withdrawal, we use a tombstone to mark the withdrawal as processed.
+		if hasWithdrawalRecentlyProcessed(&unproven, tombstone) {
+			continue
+		}
+
 		err := processor.ProveWithdrawalTransaction(ctx, &unproven)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
@@ -123,11 +143,13 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				log.Error("ProveWithdrawalTransaction", "non-revert error", err.Error())
 				return
 			}
+		} else {
+			markWithdrawalAsProcessed(&unproven, tombstone)
 		}
 	}
 }
 
-func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
+func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
@@ -140,6 +162,11 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	}
 
 	for _, unfinalized := range unfinalizeds {
+		// In order to avoid re-processing the same withdrawal, we use a tombstone to mark the withdrawal as processed.
+		if hasWithdrawalRecentlyProcessed(&unfinalized, tombstone) {
+			continue
+		}
+
 		err := processor.FinalizeMessage(ctx, &unfinalized)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal has already been finalized") {
@@ -165,6 +192,8 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				log.Error("FinalizedMessage", "non-revert error", err.Error())
 				return
 			}
+		} else {
+			markWithdrawalAsProcessed(&unfinalized, tombstone)
 		}
 	}
 }
@@ -307,4 +336,31 @@ func queryL2ScannedBlock(db *gorm.DB) (*core.L2ScannedBlock, error) {
 		}
 	}
 	return &l2ScannedBlock, nil
+}
+
+// hasWithdrawalRecentlyProcessed checks if the withdrawal has been processed recently.
+func hasWithdrawalRecentlyProcessed(botDelegatedWithdrawal *core.L2ContractEvent, tombstone *lru.Cache[uint, time.Time]) bool {
+	const tombstoneTTL = 10 * time.Minute
+	timestamp, ok := tombstone.Get(botDelegatedWithdrawal.ID)
+	return ok && timestamp.After(time.Now().Add(-tombstoneTTL))
+}
+
+// markWithdrawalAsProcessed marks the withdrawal as processed.
+func markWithdrawalAsProcessed(botDelegatedWithdrawal *core.L2ContractEvent, tombstone *lru.Cache[uint, time.Time]) {
+	tombstone.Add(botDelegatedWithdrawal.ID, time.Now())
+}
+
+// isPendingAndChainNonceEqual checks if the pending nonce and the chain nonce are equal.
+func isPendingAndChainNonceEqual(l1Client *core.ClientExt, address *common.Address) (bool, error) {
+	pendingNonce, err := l1Client.PendingNonceAt(context.Background(), *address)
+	if err != nil {
+		return false, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	latestNonce, err := l1Client.NonceAt(context.Background(), *address, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get latest nonce: %w", err)
+	}
+
+	return pendingNonce == latestNonce, nil
 }
