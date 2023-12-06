@@ -115,6 +115,10 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return fmt.Errorf("get output proposal block error: %v", err)
 	}
 
+	if len(accountResult.StorageProof) == 0 {
+		return fmt.Errorf("no storage proof")
+	}
+
 	withdrawalProof := accountResult.StorageProof[0]
 	withdrawalProof2Bytes := make([][]byte, 0)
 	for _, p1 := range withdrawalProof.Proof {
