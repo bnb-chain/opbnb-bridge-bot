@@ -46,7 +46,7 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, r
 	// event[i-2]: SentMessage
 	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
+	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 6 {
 		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
