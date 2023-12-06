@@ -27,6 +27,9 @@ contract L2StandardBridgeBot is Ownable {
 
     event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
+    event SetDelegationFee(uint256 _delegationFee);
+
+
     constructor(address payable _owner, uint256 _delegationFee) Ownable(_owner) {
         delegationFee = _delegationFee;
     }
@@ -92,5 +95,7 @@ contract L2StandardBridgeBot is Ownable {
         require(_delegationFee > 0, "_delegationFee cannot be less than or equal to 0 BNB");
         require(_delegationFee <= 1e18, "_delegationFee cannot be more than 1 BNB");
         delegationFee = _delegationFee;
+
+        emit SetDelegationFee(_delegationFee);
     }
 }
