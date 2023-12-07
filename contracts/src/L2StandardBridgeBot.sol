@@ -89,8 +89,8 @@ contract L2StandardBridgeBot is Ownable {
 
     // setDelegationFee set the delegation fee, only owner can call this function.
     function setDelegationFee(uint256 _delegationFee) external onlyOwner {
-        require(_delegationFee > 0, "_delegationFee cannot be less than or equal to 0 ether");
-        require(_delegationFee <= 1e18, "_delegationFee cannot be more than 1 ether");
+        require(_delegationFee > 0, "_delegationFee cannot be less than or equal to 0 BNB");
+        require(_delegationFee <= 1e18, "_delegationFee cannot be more than 1 BNB");
         delegationFee = _delegationFee;
     }
 }
