@@ -25,6 +25,8 @@ type Processor struct {
 
 	cfg         Config
 	L2Contracts config.L2Contracts
+
+	whitelistL2TokenMap map[common.Address]struct{}
 }
 
 func NewProcessor(
@@ -33,10 +35,17 @@ func NewProcessor(
 	l2Client *ClientExt,
 	cfg Config,
 ) *Processor {
-	log = log.New("processor", "Processor")
-
 	l2Contracts := config.L2ContractsFromPredeploys()
-	return &Processor{log, l1Client, l2Client, cfg, l2Contracts}
+
+	var whitelistL2TokenMap map[common.Address]struct{} = nil
+	if cfg.L2StandardBridgeBot.WhitelistL2TokenList != nil {
+		whitelistL2TokenMap = make(map[common.Address]struct{})
+		for _, l2Token := range *cfg.L2StandardBridgeBot.WhitelistL2TokenList {
+			whitelistL2TokenMap[common.HexToAddress(l2Token)] = struct{}{}
+		}
+	}
+
+	return &Processor{log, l1Client, l2Client, cfg, l2Contracts, whitelistL2TokenMap}
 }
 
 func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
@@ -542,30 +551,43 @@ func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *L2Contract
 		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeBotWithdrawTo event, err: %v", err)
 	}
 
-	if len(b.cfg.L2StandardBridgeBot.WhitelistL2TokenList) > 0 {
-		isWhitelisted := false
-		for _, tokenAddress := range b.cfg.L2StandardBridgeBot.WhitelistL2TokenList {
-			if withdrawToEvent.L2Token.Cmp(common.HexToAddress(tokenAddress)) == 0 {
-				isWhitelisted = true
-				break
-			}
-		}
-		if !isWhitelisted {
-			return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawToEvent.L2Token)
-		}
+	if !IsL2TokenWhitelisted(b.whitelistL2TokenMap, &withdrawToEvent.L2Token) {
+		return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawToEvent.L2Token)
 	}
-
-	if b.cfg.L2StandardBridgeBot.UpperMinGasLimit > 0 {
-		if withdrawToEvent.MinGasLimit > b.cfg.L2StandardBridgeBot.UpperMinGasLimit {
-			return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawToEvent.MinGasLimit)
-		}
+	if !IsMinGasLimitValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, withdrawToEvent.MinGasLimit) {
+		return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawToEvent.MinGasLimit)
 	}
-
-	if b.cfg.L2StandardBridgeBot.UpperExtraDataSize > 0 {
-		if len(withdrawToEvent.ExtraData) > int(b.cfg.L2StandardBridgeBot.UpperExtraDataSize) {
-			return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawToEvent.ExtraData))
-		}
+	if !IsExtraDataValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, &withdrawToEvent.ExtraData) {
+		return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawToEvent.ExtraData))
 	}
 
 	return nil
+}
+
+func IsL2TokenWhitelisted(whitelistL2TokenMap map[common.Address]struct{}, l2Token *common.Address) bool {
+	// nil means all L2 tokens are whitelisted
+	if whitelistL2TokenMap == nil {
+		return true
+	}
+
+	_, exists := whitelistL2TokenMap[*l2Token]
+	return exists
+}
+
+func IsMinGasLimitValid(upperMinGasLimit *uint32, minGasLimit uint32) bool {
+	// nil means no limit
+	if upperMinGasLimit == nil {
+		return true
+	}
+
+	return minGasLimit <= *upperMinGasLimit
+}
+
+func IsExtraDataValid(upperExtraDataSize *uint32, extraData *[]byte) bool {
+	// nil means no limit
+	if upperExtraDataSize == nil {
+		return true
+	}
+
+	return len(*extraData) <= int(*upperExtraDataSize)
 }
