@@ -15,7 +15,7 @@ contract L2StandardBridgeBotTest is Test {
     address constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
     address constant L2_STANDARD_BRIDGE = 0x4200000000000000000000000000000000000010;
 
-    event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
+    event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
     event SentMessageExtension1(address indexed sender , uint256 value);
 
