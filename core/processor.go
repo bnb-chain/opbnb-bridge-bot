@@ -39,6 +39,7 @@ func NewProcessor(
 
 	var whitelistL2TokenMap map[common.Address]struct{} = nil
 	if cfg.L2StandardBridgeBot.WhitelistL2TokenList != nil {
+		whitelistL2TokenMap = make(map[common.Address]struct{})
 		for _, l2Token := range *cfg.L2StandardBridgeBot.WhitelistL2TokenList {
 			whitelistL2TokenMap[common.HexToAddress(l2Token)] = struct{}{}
 		}
