@@ -529,7 +529,7 @@ func (b *Processor) toLowLevelMessage(
 	return &withdrawalTx, nil
 }
 
-func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *DBWithdrawal, receipt *types.Receipt) error {
+func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) error {
 	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
 	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
 	indexedArgs := func(arguments abi.Arguments) abi.Arguments {

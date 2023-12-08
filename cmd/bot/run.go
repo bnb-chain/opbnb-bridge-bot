@@ -51,7 +51,7 @@ func RunCommand(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
-	err = db.AutoMigrate(&core.DBL2ScannedBlock{})
+	err = db.AutoMigrate(&core.L2ScannedBlock{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
 	}
@@ -329,8 +329,8 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 }
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
-func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.DBL2ScannedBlock, error) {
-	l2ScannedBlock := core.DBL2ScannedBlock{Number: l2StartingNumber}
+func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
+	l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
 	result := db.Order("number desc").Last(&l2ScannedBlock)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

@@ -28,6 +28,7 @@ log-filter-block-range = 1000
 
 # See https://github.com/bnb-chain/opbnb-bridge-tokens#opbnb-testnet-token-list
 whitelist-l2-token-list = [
+    "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000", # Native token
     "0xa9aD1484D9Bfb27adbc2bf50A6E495777CC8cFf2", # BUSD
     "0x3AB4E696E31173409dbfBb1FEB5b9A7cC55A212c", # BTCB
     "0x584f7b986d9942B0859a1E6921efA5342A673d04", # ETH
