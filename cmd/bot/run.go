@@ -159,7 +159,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 	now := time.Now()
-	maxProvenTime := now.Add(-time.Duration(cfg.Misc.ChallengeTimeWindow) * time.Second)
+	maxProvenTime := now.Add(-time.Duration(cfg.ChallengeTimeWindow) * time.Second)
 
 	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
 	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
