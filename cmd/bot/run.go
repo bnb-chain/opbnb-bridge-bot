@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -271,31 +271,16 @@ func getLogs(client *core.ClientExt, fromBlock *big.Int, toBlock *big.Int, contr
 
 // connect connects to the database
 func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
-	if dbConfig.Port != 0 {
-		dsn += fmt.Sprintf(" port=%d", dbConfig.Port)
-	}
-	if dbConfig.User != "" {
-		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
-	}
-	if dbConfig.Password != "" {
-		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
-	}
-
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local", dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
 	gormConfig := gorm.Config{
 		Logger:                 core.NewGormLogger(log),
 		SkipDefaultTransaction: true,
-
-		// The postgres parameter counter for a given query is represented with uint16,
-		// resulting in a parameter limit of 65535. In order to avoid reaching this limit
-		// we'll utilize a batch size of 3k for inserts, well below the limit as long as
-		// the number of columns < 20.
-		CreateBatchSize: 3_000,
+		CreateBatchSize:        3_000,
 	}
 
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 	gorm_, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
-		gorm_, err := gorm.Open(postgres.Open(dsn), &gormConfig)
+		gorm_, err := gorm.Open(mysql.Open(dsn), &gormConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to database: %w", err)
 		}
