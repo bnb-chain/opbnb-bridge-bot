@@ -41,7 +41,7 @@ type SignerConfig struct {
 
 // LoadConfig loads the `bot.toml` config file from a given path
 func LoadConfig(log log.Logger, path string) (Config, error) {
-	log.Debug("loading config", "path", path)
+	log.Info("loading config", "path", path)
 
 	var conf Config
 	data, err := os.ReadFile(path)
