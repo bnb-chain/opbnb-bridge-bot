@@ -55,9 +55,9 @@ func RunCommand(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
 	}
-	err = db.AutoMigrate(&core.L2ContractEvent{})
+	err = db.AutoMigrate(&core.BotDelegatedWithdrawal{})
 	if err != nil {
-		return fmt.Errorf("failed to migrate l2_contract_events: %w", err)
+		return fmt.Errorf("failed to migrate withdrawals: %w", err)
 	}
 
 	l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
@@ -107,10 +107,10 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	limit := 1000
 	maxBlockTime := time.Now().Unix() - cfg.ProposeTimeWindow
 
-	unprovens := make([]core.L2ContractEvent, 0)
+	unprovens := make([]core.BotDelegatedWithdrawal, 0)
 	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
-		log.Error("failed to query l2_contract_events", "error", result.Error)
+		log.Error("failed to query withdrawals", "error", result.Error)
 		return
 	}
 
@@ -126,7 +126,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				// The withdrawal has already proven, mark it
 				result := db.Model(&unproven).Update("proven", true)
 				if result.Error != nil {
-					log.Error("failed to update proven l2_contract_events", "error", result.Error)
+					log.Error("failed to update proven withdrawals", "error", result.Error)
 				}
 			} else if strings.Contains(err.Error(), "L2OutputOracle: cannot get output for a block that has not been proposed") {
 				// Since the unproven withdrawals are sorted by the on-chain order, we can break here because we know
@@ -136,7 +136,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				// Proven transaction reverted, mark it with the failure reason
 				result := db.Model(&unproven).Update("failure_reason", err.Error())
 				if result.Error != nil {
-					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+					log.Error("failed to update failure reason of withdrawals", "error", result.Error)
 				}
 			} else {
 				// non-revert error, stop processing the subsequent withdrawals
@@ -154,10 +154,10 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	limit := 1000
 	maxBlockTime := time.Now().Unix() - cfg.ChallengeTimeWindow
 
-	unfinalizeds := make([]core.L2ContractEvent, 0)
+	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
 	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
-		log.Error("failed to query l2_contract_events", "error", result.Error)
+		log.Error("failed to query withdrawals", "error", result.Error)
 		return
 	}
 
@@ -173,7 +173,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				// The withdrawal has already finalized, mark it
 				result := db.Model(&unfinalized).Update("finalized", true)
 				if result.Error != nil {
-					log.Error("failed to update finalized l2_contract_events", "error", result.Error)
+					log.Error("failed to update finalized withdrawals", "error", result.Error)
 				}
 			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") {
 				log.Error("detected a unproven withdrawal when send finalized transaction", "withdrawal", unfinalized)
@@ -185,7 +185,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				// Finalized transaction reverted, mark it with the failure reason
 				result := db.Model(&unfinalized).Update("failure_reason", err.Error())
 				if result.Error != nil {
-					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+					log.Error("failed to update failure reason of withdrawals", "error", result.Error)
 				}
 			} else {
 				// non-revert error, stop processing the subsequent withdrawals
@@ -207,7 +207,7 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 			return err
 		}
 
-		event := core.L2ContractEvent{
+		event := core.BotDelegatedWithdrawal{
 			BlockTime:       int64(header.Time),
 			BlockHash:       vLog.BlockHash.Hex(),
 			ContractAddress: vLog.Address.Hex(),
@@ -339,14 +339,14 @@ func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBl
 }
 
 // hasWithdrawalRecentlyProcessed checks if the withdrawal has been processed recently.
-func hasWithdrawalRecentlyProcessed(botDelegatedWithdrawal *core.L2ContractEvent, tombstone *lru.Cache[uint, time.Time]) bool {
+func hasWithdrawalRecentlyProcessed(botDelegatedWithdrawal *core.BotDelegatedWithdrawal, tombstone *lru.Cache[uint, time.Time]) bool {
 	const tombstoneTTL = 10 * time.Minute
 	timestamp, ok := tombstone.Get(botDelegatedWithdrawal.ID)
 	return ok && timestamp.After(time.Now().Add(-tombstoneTTL))
 }
 
 // markWithdrawalAsProcessed marks the withdrawal as processed.
-func markWithdrawalAsProcessed(botDelegatedWithdrawal *core.L2ContractEvent, tombstone *lru.Cache[uint, time.Time]) {
+func markWithdrawalAsProcessed(botDelegatedWithdrawal *core.BotDelegatedWithdrawal, tombstone *lru.Cache[uint, time.Time]) {
 	tombstone.Add(botDelegatedWithdrawal.ID, time.Now())
 }
 
