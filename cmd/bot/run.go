@@ -103,12 +103,17 @@ func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gor
 }
 
 func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
+	latestProposedNumber, err := core.L2OutputOracleLatestBlockNumber(cfg.L1Contracts.L2OutputOracleProxy, l1Client)
+	if err != nil {
+		log.Error("failed to get latest proposed block number", "error", err)
+		return
+	}
+
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
 
 	unprovens := make([]core.BotDelegatedWithdrawal, 0)
-	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
+	result := db.Order("id asc").Where("proven_time IS NULL AND initiated_block_number <= ? AND failure_reason IS NULL", latestProposedNumber.Uint64()).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
 		return
@@ -120,11 +125,12 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 			continue
 		}
 
+		now := time.Now()
 		err := processor.ProveWithdrawalTransaction(ctx, &unproven)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
 				// The withdrawal has already proven, mark it
-				result := db.Model(&unproven).Update("proven", true)
+				result := db.Model(&unproven).Update("proven_time", now)
 				if result.Error != nil {
 					log.Error("failed to update proven withdrawals", "error", result.Error)
 				}
@@ -152,10 +158,11 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
+	now := time.Now()
+	maxProvenTime := now.Add(-time.Duration(cfg.Misc.ChallengeTimeWindow) * time.Second)
 
 	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
-	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
+	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
 		return
@@ -171,7 +178,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal has already been finalized") {
 				// The withdrawal has already finalized, mark it
-				result := db.Model(&unfinalized).Update("finalized", true)
+				result := db.Model(&unfinalized).Update("finalized_time", now)
 				if result.Error != nil {
 					log.Error("failed to update finalized withdrawals", "error", result.Error)
 				}
@@ -208,12 +215,9 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 		}
 
 		event := core.BotDelegatedWithdrawal{
-			BlockTime:       int64(header.Time),
-			BlockHash:       vLog.BlockHash.Hex(),
-			ContractAddress: vLog.Address.Hex(),
-			TransactionHash: vLog.TxHash.Hex(),
-			LogIndex:        int(vLog.Index),
-			EventSignature:  vLog.Topics[0].Hex(),
+			TransactionHash:      vLog.TxHash.Hex(),
+			LogIndex:             int(vLog.Index),
+			InitiatedBlockNumber: int64(header.Number.Uint64()),
 		}
 
 		deduped := db.Clauses(
@@ -229,9 +233,9 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 }
 
 // WatchBotDelegatedWithdrawals watches for new bot-delegated withdrawals and stores them in the database.
-func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, client *core.ClientExt, l2ScannedBlock *core.L2ScannedBlock, cfg core.Config) {
+func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, client *core.ClientExt, l2StartingBlock *core.L2ScannedBlock, cfg core.Config) {
 	timer := time.NewTimer(0)
-	fromBlockNumber := big.NewInt(l2ScannedBlock.Number)
+	fromBlockNumber := big.NewInt(l2StartingBlock.Number)
 
 	for {
 		select {
@@ -275,8 +279,8 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 			}
 		}
 
-		l2ScannedBlock.Number = toBlockNumber.Int64()
-		result := db.Where("number >= 0").Updates(l2ScannedBlock)
+		l2StartingBlock.Number = toBlockNumber.Int64()
+		result := db.Where("number >= 0").Updates(l2StartingBlock)
 		if result.Error != nil {
 			log.Error("update l2_scanned_blocks", "error", result.Error)
 		}
