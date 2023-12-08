@@ -46,7 +46,7 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, r
 	// event[i-2]: SentMessage
 	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
+	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 6 {
 		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
@@ -113,6 +113,10 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 	outputProposalBlock, err := b.L2Client.HeaderByNumber(ctx, l2OutputProposal.L2BlockNumber)
 	if err != nil {
 		return fmt.Errorf("get output proposal block error: %v", err)
+	}
+
+	if len(accountResult.StorageProof) == 0 {
+		return fmt.Errorf("no storage proof")
 	}
 
 	withdrawalProof := accountResult.StorageProof[0]
