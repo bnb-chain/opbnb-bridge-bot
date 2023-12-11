@@ -47,17 +47,17 @@ type L2StandardBridgeBotConfig struct {
 	// L2StandardBridgeBot contract doesn't limit the L2 tokens to be bridged, but this off-chain bot
 	// process only whitelists the tokens in this list and ignore tokens not in this list.
 	//
-	// **IMPORTANT: If this list is empty (by default), all L2 tokens are whitelisted.**
+	// **IMPORTANT: If this list is unset, all L2 tokens are whitelisted.**
 	WhitelistL2TokenList *[]string `toml:"whitelist-l2-token-list"`
 
 	// UpperMinGasLimit is the upper limit of the minimum gas limit of the L2StandardBridgeBot contract.
 	//
-	// **IMPORTANT: If this value is 0 (by default), the L2StandardBridgeBot contract doesn't limit the minimum gas limit.**
+	// **IMPORTANT: If this value is unset, the L2StandardBridgeBot contract doesn't limit the minimum gas limit.**
 	UpperMinGasLimit *uint32 `toml:"upper-min-gas-limit"`
 
 	// UpperExtraDataSize is the upper limit of the extra data size of the L2StandardBridgeBot contract.
 	//
-	// **IMPORTANT: If this value is 0 (by default), the L2StandardBridgeBot contract doesn't limit the extra data size.**
+	// **IMPORTANT: If this value is unset, the L2StandardBridgeBot contract doesn't limit the extra data size.**
 	UpperExtraDataSize *uint32 `toml:"upper-extra-data-size"`
 }
 
