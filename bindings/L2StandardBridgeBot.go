@@ -31,7 +31,7 @@ var (
 
 // L2StandardBridgeBotMetaData contains all meta data concerning the L2StandardBridgeBot contract.
 var L2StandardBridgeBotMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"addresspayable\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_delegationFee\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"l2Token\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint32\",\"name\":\"minGasLimit\",\"type\":\"uint32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"name\":\"WithdrawTo\",\"type\":\"event\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"},{\"inputs\":[],\"name\":\"L2_STANDARD_BRIDGE\",\"outputs\":[{\"internalType\":\"contractIL2StandardBridge\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_STANDARD_BRIDGE_ADDRESS\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"delegationFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_delegationFee\",\"type\":\"uint256\"}],\"name\":\"setDelegationFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_l2Token\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"}],\"name\":\"withdrawFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdrawFeeToL1\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_l2Token\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdrawTo\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"addresspayable\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_delegationFee\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"}],\"name\":\"AddressEmptyCode\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"AddressInsufficientBalance\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"FailedInnerCall\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"}],\"name\":\"SafeERC20FailedOperation\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_delegationFee\",\"type\":\"uint256\"}],\"name\":\"SetDelegationFee\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"l2Token\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint32\",\"name\":\"minGasLimit\",\"type\":\"uint32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"name\":\"WithdrawTo\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"L2_STANDARD_BRIDGE\",\"outputs\":[{\"internalType\":\"contractIL2StandardBridge\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_STANDARD_BRIDGE_ADDRESS\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"delegationFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_delegationFee\",\"type\":\"uint256\"}],\"name\":\"setDelegationFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_l2Token\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"}],\"name\":\"withdrawFee\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdrawFeeToL1\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_l2Token\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"withdrawTo\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]",
 }
 
 // L2StandardBridgeBotABI is the input ABI used to generate the binding from.
@@ -451,48 +451,6 @@ func (_L2StandardBridgeBot *L2StandardBridgeBotTransactorSession) WithdrawTo(_l2
 	return _L2StandardBridgeBot.Contract.WithdrawTo(&_L2StandardBridgeBot.TransactOpts, _l2Token, _to, _amount, _minGasLimit, _extraData)
 }
 
-// Fallback is a paid mutator transaction binding the contract fallback function.
-//
-// Solidity: fallback() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotTransactor) Fallback(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
-	return _L2StandardBridgeBot.contract.RawTransact(opts, calldata)
-}
-
-// Fallback is a paid mutator transaction binding the contract fallback function.
-//
-// Solidity: fallback() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotSession) Fallback(calldata []byte) (*types.Transaction, error) {
-	return _L2StandardBridgeBot.Contract.Fallback(&_L2StandardBridgeBot.TransactOpts, calldata)
-}
-
-// Fallback is a paid mutator transaction binding the contract fallback function.
-//
-// Solidity: fallback() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotTransactorSession) Fallback(calldata []byte) (*types.Transaction, error) {
-	return _L2StandardBridgeBot.Contract.Fallback(&_L2StandardBridgeBot.TransactOpts, calldata)
-}
-
-// Receive is a paid mutator transaction binding the contract receive function.
-//
-// Solidity: receive() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotTransactor) Receive(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _L2StandardBridgeBot.contract.RawTransact(opts, nil) // calldata is disallowed for receive function
-}
-
-// Receive is a paid mutator transaction binding the contract receive function.
-//
-// Solidity: receive() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotSession) Receive() (*types.Transaction, error) {
-	return _L2StandardBridgeBot.Contract.Receive(&_L2StandardBridgeBot.TransactOpts)
-}
-
-// Receive is a paid mutator transaction binding the contract receive function.
-//
-// Solidity: receive() payable returns()
-func (_L2StandardBridgeBot *L2StandardBridgeBotTransactorSession) Receive() (*types.Transaction, error) {
-	return _L2StandardBridgeBot.Contract.Receive(&_L2StandardBridgeBot.TransactOpts)
-}
-
 // L2StandardBridgeBotOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the L2StandardBridgeBot contract.
 type L2StandardBridgeBotOwnershipTransferredIterator struct {
 	Event *L2StandardBridgeBotOwnershipTransferred // Event containing the contract specifics and raw log
@@ -646,6 +604,140 @@ func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) ParseOwnershipTransferr
 	return event, nil
 }
 
+// L2StandardBridgeBotSetDelegationFeeIterator is returned from FilterSetDelegationFee and is used to iterate over the raw logs and unpacked data for SetDelegationFee events raised by the L2StandardBridgeBot contract.
+type L2StandardBridgeBotSetDelegationFeeIterator struct {
+	Event *L2StandardBridgeBotSetDelegationFee // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *L2StandardBridgeBotSetDelegationFeeIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(L2StandardBridgeBotSetDelegationFee)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(L2StandardBridgeBotSetDelegationFee)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *L2StandardBridgeBotSetDelegationFeeIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *L2StandardBridgeBotSetDelegationFeeIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// L2StandardBridgeBotSetDelegationFee represents a SetDelegationFee event raised by the L2StandardBridgeBot contract.
+type L2StandardBridgeBotSetDelegationFee struct {
+	DelegationFee *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterSetDelegationFee is a free log retrieval operation binding the contract event 0x0322f3257c2afe5fe8da7ab561f0d3384148487412fe2751678f2188731c0815.
+//
+// Solidity: event SetDelegationFee(uint256 _delegationFee)
+func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) FilterSetDelegationFee(opts *bind.FilterOpts) (*L2StandardBridgeBotSetDelegationFeeIterator, error) {
+
+	logs, sub, err := _L2StandardBridgeBot.contract.FilterLogs(opts, "SetDelegationFee")
+	if err != nil {
+		return nil, err
+	}
+	return &L2StandardBridgeBotSetDelegationFeeIterator{contract: _L2StandardBridgeBot.contract, event: "SetDelegationFee", logs: logs, sub: sub}, nil
+}
+
+// WatchSetDelegationFee is a free log subscription operation binding the contract event 0x0322f3257c2afe5fe8da7ab561f0d3384148487412fe2751678f2188731c0815.
+//
+// Solidity: event SetDelegationFee(uint256 _delegationFee)
+func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) WatchSetDelegationFee(opts *bind.WatchOpts, sink chan<- *L2StandardBridgeBotSetDelegationFee) (event.Subscription, error) {
+
+	logs, sub, err := _L2StandardBridgeBot.contract.WatchLogs(opts, "SetDelegationFee")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(L2StandardBridgeBotSetDelegationFee)
+				if err := _L2StandardBridgeBot.contract.UnpackLog(event, "SetDelegationFee", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseSetDelegationFee is a log parse operation binding the contract event 0x0322f3257c2afe5fe8da7ab561f0d3384148487412fe2751678f2188731c0815.
+//
+// Solidity: event SetDelegationFee(uint256 _delegationFee)
+func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) ParseSetDelegationFee(log types.Log) (*L2StandardBridgeBotSetDelegationFee, error) {
+	event := new(L2StandardBridgeBotSetDelegationFee)
+	if err := _L2StandardBridgeBot.contract.UnpackLog(event, "SetDelegationFee", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
 // L2StandardBridgeBotWithdrawToIterator is returned from FilterWithdrawTo and is used to iterate over the raw logs and unpacked data for WithdrawTo events raised by the L2StandardBridgeBot contract.
 type L2StandardBridgeBotWithdrawToIterator struct {
 	Event *L2StandardBridgeBotWithdrawTo // Event containing the contract specifics and raw log
@@ -726,15 +818,19 @@ type L2StandardBridgeBotWithdrawTo struct {
 
 // FilterWithdrawTo is a free log retrieval operation binding the contract event 0x56f66275d9ebc94b7d6895aa0d96a3783550d0183ba106408d387d19f2e877f1.
 //
-// Solidity: event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
-func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) FilterWithdrawTo(opts *bind.FilterOpts, from []common.Address) (*L2StandardBridgeBotWithdrawToIterator, error) {
+// Solidity: event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
+func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) FilterWithdrawTo(opts *bind.FilterOpts, from []common.Address, l2Token []common.Address) (*L2StandardBridgeBotWithdrawToIterator, error) {
 
 	var fromRule []interface{}
 	for _, fromItem := range from {
 		fromRule = append(fromRule, fromItem)
 	}
+	var l2TokenRule []interface{}
+	for _, l2TokenItem := range l2Token {
+		l2TokenRule = append(l2TokenRule, l2TokenItem)
+	}
 
-	logs, sub, err := _L2StandardBridgeBot.contract.FilterLogs(opts, "WithdrawTo", fromRule)
+	logs, sub, err := _L2StandardBridgeBot.contract.FilterLogs(opts, "WithdrawTo", fromRule, l2TokenRule)
 	if err != nil {
 		return nil, err
 	}
@@ -743,15 +839,19 @@ func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) FilterWithdrawTo(opts *
 
 // WatchWithdrawTo is a free log subscription operation binding the contract event 0x56f66275d9ebc94b7d6895aa0d96a3783550d0183ba106408d387d19f2e877f1.
 //
-// Solidity: event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
-func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) WatchWithdrawTo(opts *bind.WatchOpts, sink chan<- *L2StandardBridgeBotWithdrawTo, from []common.Address) (event.Subscription, error) {
+// Solidity: event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
+func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) WatchWithdrawTo(opts *bind.WatchOpts, sink chan<- *L2StandardBridgeBotWithdrawTo, from []common.Address, l2Token []common.Address) (event.Subscription, error) {
 
 	var fromRule []interface{}
 	for _, fromItem := range from {
 		fromRule = append(fromRule, fromItem)
 	}
+	var l2TokenRule []interface{}
+	for _, l2TokenItem := range l2Token {
+		l2TokenRule = append(l2TokenRule, l2TokenItem)
+	}
 
-	logs, sub, err := _L2StandardBridgeBot.contract.WatchLogs(opts, "WithdrawTo", fromRule)
+	logs, sub, err := _L2StandardBridgeBot.contract.WatchLogs(opts, "WithdrawTo", fromRule, l2TokenRule)
 	if err != nil {
 		return nil, err
 	}
@@ -785,7 +885,7 @@ func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) WatchWithdrawTo(opts *b
 
 // ParseWithdrawTo is a log parse operation binding the contract event 0x56f66275d9ebc94b7d6895aa0d96a3783550d0183ba106408d387d19f2e877f1.
 //
-// Solidity: event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
+// Solidity: event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData)
 func (_L2StandardBridgeBot *L2StandardBridgeBotFilterer) ParseWithdrawTo(log types.Log) (*L2StandardBridgeBotWithdrawTo, error) {
 	event := new(L2StandardBridgeBotWithdrawTo)
 	if err := _L2StandardBridgeBot.contract.UnpackLog(event, "WithdrawTo", log); err != nil {
