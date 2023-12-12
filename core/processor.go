@@ -82,7 +82,7 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdr
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal) error {
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, nonce uint64) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
@@ -170,6 +170,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), signerPrivkey)
 			},
+			Nonce: big.NewInt(int64(nonce)),
 		},
 		*withdrawalTx,
 		l2OutputIndex,
@@ -529,7 +530,7 @@ func (b *Processor) toLowLevelMessage(
 	return &withdrawalTx, nil
 }
 
-func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *L2ContractEvent, receipt *types.Receipt) error {
+func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) error {
 	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
 	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
 	indexedArgs := func(arguments abi.Arguments) abi.Arguments {

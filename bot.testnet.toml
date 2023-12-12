@@ -23,7 +23,7 @@ l2-output-oracle                = "0xff2394bb843012562f4349c6632a0ecb92fc8810"
 l1-cross-domain-messenger       = "0xd506952e78eecd5d4424b1990a0c99b1568e7c2c"
 
 [l2-standard-bridge-bot]
-contract-address                = "0x62fa6549e240076D466E1150ce587905c55f12F1"
+contract-address                = "$OPBNB_BRIDGE_BOT_L2_STANDARD_BRIDGE_BOT_CONTRACT_ADDRESS"
 log-filter-block-range = 1000
 
 # See https://github.com/bnb-chain/opbnb-bridge-tokens#opbnb-testnet-token-list

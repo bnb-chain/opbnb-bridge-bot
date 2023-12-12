@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -77,8 +76,7 @@ func RunCommand(ctx *cli.Context) error {
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	ticker := time.NewTicker(3 * time.Second)
-	unprovenTombstone := lru.NewCache[uint, time.Time](10000)
-	unfinalizedTombstone := lru.NewCache[uint, time.Time](10000)
+	pending := core.NewPendingTxsManager()
 	for {
 		select {
 		case <-ticker.C:
@@ -94,15 +92,21 @@ func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gor
 				continue
 			}
 
-			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, unprovenTombstone)
-			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, unfinalizedTombstone)
+			currentNonce, err := l1Client.NonceAt(ctx, *signerAddress, nil)
+			if err != nil {
+				log.Error("failed to get chain nonce", "error", err)
+				continue
+			}
+
+			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, pending, &currentNonce)
+			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, pending, &currentNonce)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
+func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, pending *core.PendingTxnCheck, currentNonce *uint64) {
 	latestProposedNumber, err := core.L2OutputOracleLatestBlockNumber(cfg.L1Contracts.L2OutputOracleProxy, l1Client)
 	if err != nil {
 		log.Error("failed to get latest proposed block number", "error", err)
@@ -119,14 +123,15 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 		return
 	}
 
+	pending.Prune(*currentNonce)
 	for _, unproven := range unprovens {
-		// In order to avoid re-processing the same withdrawal, we use a tombstone to mark the withdrawal as processed.
-		if hasWithdrawalRecentlyProcessed(&unproven, tombstone) {
+		// Avoid re-processing the same withdrawal
+		if pending.IsPendingTxn(unproven.ID) {
 			continue
 		}
 
 		now := time.Now()
-		err := processor.ProveWithdrawalTransaction(ctx, &unproven)
+		err := processor.ProveWithdrawalTransaction(ctx, &unproven, *currentNonce)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
 				// The withdrawal has already proven, mark it
@@ -150,17 +155,18 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 				return
 			}
 		} else {
-			markWithdrawalAsProcessed(&unproven, tombstone)
+			pending.AddPendingTxn(unproven.ID, *currentNonce)
+			*currentNonce = *currentNonce + 1
 		}
 	}
 }
 
-func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, tombstone *lru.Cache[uint, time.Time]) {
+func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, pending *core.PendingTxnCheck, currentNonce *uint64) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 
 	now := time.Now()
-	maxProvenTime := now.Add(-time.Duration(cfg.Misc.ChallengeTimeWindow) * time.Second)
+	maxProvenTime := now.Add(-time.Duration(cfg.ChallengeTimeWindow) * time.Second)
 
 	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
 	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
@@ -169,9 +175,10 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 		return
 	}
 
+	pending.Prune(*currentNonce)
 	for _, unfinalized := range unfinalizeds {
-		// In order to avoid re-processing the same withdrawal, we use a tombstone to mark the withdrawal as processed.
-		if hasWithdrawalRecentlyProcessed(&unfinalized, tombstone) {
+		// In order to avoid re-processing the same withdrawal
+		if pending.IsPendingTxn(unfinalized.ID) {
 			continue
 		}
 
@@ -201,7 +208,8 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				return
 			}
 		} else {
-			markWithdrawalAsProcessed(&unfinalized, tombstone)
+			pending.AddPendingTxn(unfinalized.ID, *currentNonce)
+			*currentNonce = *currentNonce + 1
 		}
 	}
 }
@@ -281,7 +289,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		l2StartingBlock.Number = toBlockNumber.Int64()
-		result := db.Where("number >= 0").Updates(l2StartingBlock)
+		result := db.Save(l2StartingBlock)
 		if result.Error != nil {
 			log.Error("update l2_scanned_blocks", "error", result.Error)
 		}
@@ -331,7 +339,7 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
 func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
-    l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
+	l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
 	result := db.Order("number desc").Last(&l2ScannedBlock)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -341,18 +349,6 @@ func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBl
 		}
 	}
 	return &l2ScannedBlock, nil
-}
-
-// hasWithdrawalRecentlyProcessed checks if the withdrawal has been processed recently.
-func hasWithdrawalRecentlyProcessed(botDelegatedWithdrawal *core.BotDelegatedWithdrawal, tombstone *lru.Cache[uint, time.Time]) bool {
-	const tombstoneTTL = 10 * time.Minute
-	timestamp, ok := tombstone.Get(botDelegatedWithdrawal.ID)
-	return ok && timestamp.After(time.Now().Add(-tombstoneTTL))
-}
-
-// markWithdrawalAsProcessed marks the withdrawal as processed.
-func markWithdrawalAsProcessed(botDelegatedWithdrawal *core.BotDelegatedWithdrawal, tombstone *lru.Cache[uint, time.Time]) {
-	tombstone.Add(botDelegatedWithdrawal.ID, time.Now())
 }
 
 // isPendingAndChainNonceEqual checks if the pending nonce and the chain nonce are equal.
