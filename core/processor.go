@@ -48,7 +48,7 @@ func NewProcessor(
 	return &Processor{log, l1Client, l2Client, cfg, l2Contracts, whitelistL2TokenMap}
 }
 
-func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
+func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
 	// event[i-5]: WithdrawalInitiated
@@ -82,7 +82,7 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdr
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, nonce uint64) error {
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, nonce uint64) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 }
 
 // FinalizeMessage https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1611
-func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal) error {
+func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *WithdrawalInitiatedLog) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
@@ -530,7 +530,7 @@ func (b *Processor) toLowLevelMessage(
 	return &withdrawalTx, nil
 }
 
-func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) error {
+func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, receipt *types.Receipt) error {
 	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
 	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
 	indexedArgs := func(arguments abi.Arguments) abi.Arguments {
