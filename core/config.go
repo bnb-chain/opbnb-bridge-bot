@@ -21,13 +21,13 @@ const (
 
 type Config struct {
 	L2StartingNumber    int64 `toml:"l2-starting-number"`
-	ProposeTimeWindow   int64 `toml:"propose-time-window"`
 	ChallengeTimeWindow int64 `toml:"challenge-time-window"`
 
 	RPCs                config.RPCsConfig         `toml:"rpcs"`
 	DB                  config.DBConfig           `toml:"db"`
 	L1Contracts         config.L1Contracts        `toml:"l1-contracts"`
 	L2StandardBridgeBot L2StandardBridgeBotConfig `toml:"l2-standard-bridge-bot"`
+	FeeVault            FeeVaultConfig            `toml:"fee-vault"`
 	TxSigner            TxSignerConfig            `toml:"tx-signer"`
 }
 
@@ -36,9 +36,14 @@ type TxSignerConfig struct {
 	GasPrice int64  `toml:"gas-price"`
 }
 
+type FeeVaultConfig struct {
+	// ContractAddress are the addresses of the FeeVault contracts.
+	ContractAddresses []string `toml:"contract-addresses"`
+}
+
 type L2StandardBridgeBotConfig struct {
-	// ContractAddress is the address of the L2StandardBridgeBot contract.
-	ContractAddress string `toml:"contract-address"`
+	// ContractAddress are the addresses of the L2StandardBridgeBot contracts.
+	ContractAddresses []string `toml:"contract-addresses"`
 
 	// LogFilterBlockRange is the number of blocks to filter for events
 	LogFilterBlockRange int64 `toml:"log-filter-block-range"`
@@ -82,9 +87,6 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	if conf.L2StandardBridgeBot.LogFilterBlockRange == 0 {
 		log.Info("setting default log filter block range", "log-filter-block-range", defaultLogFilterBlockRange)
 		conf.L2StandardBridgeBot.LogFilterBlockRange = defaultLogFilterBlockRange
-	}
-	if conf.ProposeTimeWindow == 0 {
-		return conf, errors.New("propose-time-window must be set")
 	}
 	if conf.ChallengeTimeWindow == 0 {
 		return conf, errors.New("challenge-time-window must be set")
