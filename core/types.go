@@ -18,13 +18,13 @@ type WithdrawalInitiatedLog struct {
 	LogIndex        int    `gorm:"type:integer;not null;uniqueIndex:idx_withdrawal_initiated_logs_transaction_hash_log_index_key,priority:2"`
 
 	// InitiatedBlockNumber is the l2 block number at which the withdrawal was initiated on L2.
-	InitiatedBlockNumber int64 `gorm:"type:integer;not null;index:idx_withdrawals_initiated_block_number"`
+	InitiatedBlockNumber int64 `gorm:"type:integer;not null;index:idx_withdrawal_initiated_logs_initiated_block_number"`
 
 	// ProvenTime is the local time at which the withdrawal was proven on L1. NULL if not yet proven.
-	ProvenTime *time.Time `gorm:"type:datetime;index:idx_withdrawals_proven_time"`
+	ProvenTime *time.Time `gorm:"type:datetime;index:idx_withdrawal_initiated_logs_proven_time"`
 
 	// FinalizedTime is the local time at which the withdrawal was finalized on L1. NULL if not yet finalized.
-	FinalizedTime *time.Time `gorm:"type:datetime;index:idx_withdrawals_finalized_time"`
+	FinalizedTime *time.Time `gorm:"type:datetime;index:idx_withdrawal_initiated_logs_finalized_time"`
 
 	// FailureReason is the reason for the withdrawal failure, including sending transaction error and off-chain configured filter error. NULL if not yet failed.
 	FailureReason *string `gorm:"type:text"`
