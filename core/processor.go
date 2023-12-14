@@ -61,9 +61,12 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdr
 		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
-	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
-	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-2]
-	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-1]
+	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-3))
+	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-2))
+	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-1))
+	if messagePassedLog == nil || sentMessageLog == nil || sentMessageExtension1Log == nil {
+		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
+	}
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
 	if err != nil {
@@ -88,7 +91,12 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
-	err = b.CheckByFilterOptions(botDelegatedWithdrawToEvent, receipt)
+	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	if vlog == nil {
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+	}
+
+	err = b.CheckByFilterOptions(vlog)
 	if err != nil {
 		return err
 	}
@@ -192,7 +200,12 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return err
 	}
 
-	err = b.CheckByFilterOptions(botDelegatedWithdrawToEvent, receipt)
+	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	if vlog == nil {
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+	}
+
+	err = b.CheckByFilterOptions(vlog)
 	if err != nil {
 		return err
 	}
@@ -530,7 +543,7 @@ func (b *Processor) toLowLevelMessage(
 	return &withdrawalTx, nil
 }
 
-func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) error {
+func (b *Processor) CheckByFilterOptions(vlog *types.Log) error {
 	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
 	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
 	indexedArgs := func(arguments abi.Arguments) abi.Arguments {
@@ -542,12 +555,13 @@ func (b *Processor) CheckByFilterOptions(botDelegatedWithdrawToEvent *BotDelegat
 		}
 		return indexedArgs
 	}
-	err := abi.ParseTopics(&withdrawToEvent, indexedArgs(L2StandardBridgeBotAbi.Events["WithdrawTo"].Inputs), receipt.Logs[botDelegatedWithdrawToEvent.LogIndex].Topics[1:])
+
+	err := abi.ParseTopics(&withdrawToEvent, indexedArgs(L2StandardBridgeBotAbi.Events["WithdrawTo"].Inputs), vlog.Topics[1:])
 	if err != nil {
 		return fmt.Errorf("parse indexed event arguments from log.topics of L2StandardBridgeBotWithdrawTo event, err: %v", err)
 	}
 
-	err = L2StandardBridgeBotAbi.UnpackIntoInterface(&withdrawToEvent, "WithdrawTo", receipt.Logs[botDelegatedWithdrawToEvent.LogIndex].Data)
+	err = L2StandardBridgeBotAbi.UnpackIntoInterface(&withdrawToEvent, "WithdrawTo", vlog.Data)
 	if err != nil {
 		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeBotWithdrawTo event, err: %v", err)
 	}
