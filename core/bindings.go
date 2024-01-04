@@ -1,6 +1,9 @@
 package core
 
 import (
+	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/crypto/sha3"
 )
@@ -16,4 +19,14 @@ func WithdrawToEventSig() common.Hash {
 	keccak256.Write([]byte(eventSignature))
 	eventSignatureHash := keccak256.Sum(nil)
 	return common.BytesToHash(eventSignatureHash)
+}
+
+// L2OutputOracleLatestBlockNumber calls the "latestBlockNumber" function on the L2OutputOracle contract at the given address.
+func L2OutputOracleLatestBlockNumber(address common.Address, l1Client *ClientExt) (*big.Int, error) {
+	caller, err := bindings.NewL2OutputOracleCaller(address, l1Client)
+	if err != nil {
+		return nil, err
+	}
+
+	return caller.LatestBlockNumber(nil)
 }
