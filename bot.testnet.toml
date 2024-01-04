@@ -1,5 +1,5 @@
 propose-time-window = 240
-challenge-time-window = 3
+challenge-time-window = 120 # in seconds. Adjust the setting to 120 seconds for convenience during testing.
 l2-starting-number = $OPBNB_BRIDGE_BOT_L2_STARTING_NUMBER
 
 [rpcs]
