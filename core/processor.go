@@ -1,9 +1,12 @@
 package core
 
 import (
+	bindings2 "bnbchain/opbnb-bridge-bot/bindings"
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -12,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"math/big"
 )
 
 type Processor struct {
@@ -23,6 +25,8 @@ type Processor struct {
 
 	cfg         Config
 	L2Contracts config.L2Contracts
+
+	whitelistL2TokenMap map[common.Address]struct{}
 }
 
 func NewProcessor(
@@ -31,13 +35,20 @@ func NewProcessor(
 	l2Client *ClientExt,
 	cfg Config,
 ) *Processor {
-	log = log.New("processor", "Processor")
-
 	l2Contracts := config.L2ContractsFromPredeploys()
-	return &Processor{log, l1Client, l2Client, cfg, l2Contracts}
+
+	var whitelistL2TokenMap map[common.Address]struct{} = nil
+	if cfg.L2StandardBridgeBot.WhitelistL2TokenList != nil {
+		whitelistL2TokenMap = make(map[common.Address]struct{})
+		for _, l2Token := range *cfg.L2StandardBridgeBot.WhitelistL2TokenList {
+			whitelistL2TokenMap[common.HexToAddress(l2Token)] = struct{}{}
+		}
+	}
+
+	return &Processor{log, l1Client, l2Client, cfg, l2Contracts, whitelistL2TokenMap}
 }
 
-func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
+func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
 	// event[i-5]: WithdrawalInitiated
@@ -46,13 +57,16 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, r
 	// event[i-2]: SentMessage
 	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 5 {
+	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 6 {
 		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
 
-	messagePassedLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-3]
-	sentMessageLog := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-2]
-	sentMessageExtension1Log := receipt.Logs[botDelegatedWithdrawToEvent.LogIndex-1]
+	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-3))
+	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-2))
+	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-1))
+	if messagePassedLog == nil || sentMessageLog == nil || sentMessageExtension1Log == nil {
+		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
+	}
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
 	if err != nil {
@@ -71,8 +85,18 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *L2ContractEvent, r
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *L2ContractEvent) error {
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, nonce uint64) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+	if err != nil {
+		return err
+	}
+
+	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	if vlog == nil {
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+	}
+
+	err = b.CheckByFilterOptions(vlog)
 	if err != nil {
 		return err
 	}
@@ -115,6 +139,10 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return fmt.Errorf("get output proposal block error: %v", err)
 	}
 
+	if len(accountResult.StorageProof) == 0 {
+		return fmt.Errorf("no storage proof")
+	}
+
 	withdrawalProof := accountResult.StorageProof[0]
 	withdrawalProof2Bytes := make([][]byte, 0)
 	for _, p1 := range withdrawalProof.Proof {
@@ -133,7 +161,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
@@ -150,6 +178,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), signerPrivkey)
 			},
+			Nonce: big.NewInt(int64(nonce)),
 		},
 		*withdrawalTx,
 		l2OutputIndex,
@@ -165,8 +194,18 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 }
 
 // FinalizeMessage https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1611
-func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *L2ContractEvent) error {
+func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+	if err != nil {
+		return err
+	}
+
+	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	if vlog == nil {
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+	}
+
+	err = b.CheckByFilterOptions(vlog)
 	if err != nil {
 		return err
 	}
@@ -181,7 +220,7 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return err
 	}
 
-	gasPrice := big.NewInt(b.cfg.Signer.GasPrice)
+	gasPrice := big.NewInt(b.cfg.TxSigner.GasPrice)
 	signerPrivkey, signerAddress, err := b.cfg.SignerKeyPair()
 	if err != nil {
 		return err
@@ -502,4 +541,68 @@ func (b *Processor) toLowLevelMessage(
 		Data:     relayMessageCalldata,
 	}
 	return &withdrawalTx, nil
+}
+
+func (b *Processor) CheckByFilterOptions(vlog *types.Log) error {
+	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
+	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
+	indexedArgs := func(arguments abi.Arguments) abi.Arguments {
+		indexedArgs := abi.Arguments{}
+		for _, arg := range arguments {
+			if arg.Indexed {
+				indexedArgs = append(indexedArgs, arg)
+			}
+		}
+		return indexedArgs
+	}
+
+	err := abi.ParseTopics(&withdrawToEvent, indexedArgs(L2StandardBridgeBotAbi.Events["WithdrawTo"].Inputs), vlog.Topics[1:])
+	if err != nil {
+		return fmt.Errorf("parse indexed event arguments from log.topics of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+	}
+
+	err = L2StandardBridgeBotAbi.UnpackIntoInterface(&withdrawToEvent, "WithdrawTo", vlog.Data)
+	if err != nil {
+		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+	}
+
+	if !IsL2TokenWhitelisted(b.whitelistL2TokenMap, &withdrawToEvent.L2Token) {
+		return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawToEvent.L2Token)
+	}
+	if !IsMinGasLimitValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, withdrawToEvent.MinGasLimit) {
+		return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawToEvent.MinGasLimit)
+	}
+	if !IsExtraDataValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, &withdrawToEvent.ExtraData) {
+		return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawToEvent.ExtraData))
+	}
+
+	return nil
+}
+
+func IsL2TokenWhitelisted(whitelistL2TokenMap map[common.Address]struct{}, l2Token *common.Address) bool {
+	// nil means all L2 tokens are whitelisted
+	if whitelistL2TokenMap == nil {
+		return true
+	}
+
+	_, exists := whitelistL2TokenMap[*l2Token]
+	return exists
+}
+
+func IsMinGasLimitValid(upperMinGasLimit *uint32, minGasLimit uint32) bool {
+	// nil means no limit
+	if upperMinGasLimit == nil {
+		return true
+	}
+
+	return minGasLimit <= *upperMinGasLimit
+}
+
+func IsExtraDataValid(upperExtraDataSize *uint32, extraData *[]byte) bool {
+	// nil means no limit
+	if upperExtraDataSize == nil {
+		return true
+	}
+
+	return len(*extraData) <= int(*upperExtraDataSize)
 }

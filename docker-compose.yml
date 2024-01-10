@@ -1,21 +1,18 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:latest
+  mysql:
+    image: mysql:latest
     environment:
-      - POSTGRES_USER=db_username
-      - POSTGRES_PASSWORD=db_password
-      - POSTGRES_DB=db_name
-      - PGDATA=/data/postgres
-      - POSTGRES_HOST_AUTH_METHOD=trust
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+      - MYSQL_ROOT_PASSWORD=db_password
+      - MYSQL_DATABASE=db_name
+      - MYSQL_USER=db_username
+      - MYSQL_PASSWORD=db_password
+    command: --default-authentication-plugin=mysql_native_password
     ports:
-      - "5434:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/data/postgres
+      - mysql_data:/var/lib/mysql
 
 volumes:
-  postgres_data:
-
+  mysql_data:

@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -54,12 +54,12 @@ func RunCommand(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
 	}
-	err = db.AutoMigrate(&core.L2ContractEvent{})
+	err = db.AutoMigrate(&core.BotDelegatedWithdrawal{})
 	if err != nil {
-		return fmt.Errorf("failed to migrate l2_contract_events: %w", err)
+		return fmt.Errorf("failed to migrate withdrawals: %w", err)
 	}
 
-	l2ScannedBlock, err := queryL2ScannedBlock(db, &cfg)
+	l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
 	if err != nil {
 		return err
 	}
@@ -76,77 +76,119 @@ func RunCommand(ctx *cli.Context) error {
 // and it will finalize the withdrawal when the challenge time window has passed.
 func ProcessBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
 	ticker := time.NewTicker(3 * time.Second)
+	pending := core.NewPendingTxsManager()
 	for {
 		select {
 		case <-ticker.C:
-			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
-			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg)
+			// In order to avoid re-processing the same withdrawal, we need to check if the pending nonce is
+			// the chain nonce. If they are not equal, it means that there are some pending transactions that
+			// been confirmed yet.
+			_, signerAddress, _ := cfg.SignerKeyPair()
+			if equal, err := isPendingAndChainNonceEqual(l1Client, signerAddress); err != nil {
+				log.Error("failed to check pending and chain nonce", "error", err)
+				continue
+			} else if !equal {
+				log.Info("pending nonce is not equal to chain nonce, skip processing")
+				continue
+			}
+
+			currentNonce, err := l1Client.NonceAt(ctx, *signerAddress, nil)
+			if err != nil {
+				log.Error("failed to get chain nonce", "error", err)
+				continue
+			}
+
+			ProcessUnprovenBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, pending, &currentNonce)
+			ProcessUnfinalizedBotDelegatedWithdrawals(ctx, log, db, l1Client, l2Client, cfg, pending, &currentNonce)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
-	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
-	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ProposeTimeWindow
-
-	unprovens := make([]core.L2ContractEvent, 0)
-	result := db.Order("id asc").Where("proven = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unprovens)
-	if result.Error != nil {
-		log.Error("failed to query l2_contract_events", "error", result.Error)
+func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, pending *core.PendingTxnCheck, currentNonce *uint64) {
+	latestProposedNumber, err := core.L2OutputOracleLatestBlockNumber(cfg.L1Contracts.L2OutputOracleProxy, l1Client)
+	if err != nil {
+		log.Error("failed to get latest proposed block number", "error", err)
 		return
 	}
 
+	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
+	limit := 1000
+
+	unprovens := make([]core.BotDelegatedWithdrawal, 0)
+	result := db.Order("id asc").Where("proven_time IS NULL AND initiated_block_number <= ? AND failure_reason IS NULL", latestProposedNumber.Uint64()).Limit(limit).Find(&unprovens)
+	if result.Error != nil {
+		log.Error("failed to query withdrawals", "error", result.Error)
+		return
+	}
+
+	pending.Prune(*currentNonce)
 	for _, unproven := range unprovens {
-		err := processor.ProveWithdrawalTransaction(ctx, &unproven)
+		// Avoid re-processing the same withdrawal
+		if pending.IsPendingTxn(unproven.ID) {
+			continue
+		}
+
+		now := time.Now()
+		err := processor.ProveWithdrawalTransaction(ctx, &unproven, *currentNonce)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
 				// The withdrawal has already proven, mark it
-				result := db.Model(&unproven).Update("proven", true)
+				result := db.Model(&unproven).Update("proven_time", now)
 				if result.Error != nil {
-					log.Error("failed to update proven l2_contract_events", "error", result.Error)
+					log.Error("failed to update proven withdrawals", "error", result.Error)
 				}
 			} else if strings.Contains(err.Error(), "L2OutputOracle: cannot get output for a block that has not been proposed") {
 				// Since the unproven withdrawals are sorted by the on-chain order, we can break here because we know
 				// that the subsequent of the withdrawals are not ready to be proven yet.
 				return
-			} else if strings.Contains(err.Error(), "execution reverted") {
+			} else if strings.Contains(err.Error(), "execution reverted") || strings.Contains(err.Error(), "filtered") {
 				// Proven transaction reverted, mark it with the failure reason
 				result := db.Model(&unproven).Update("failure_reason", err.Error())
 				if result.Error != nil {
-					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+					log.Error("failed to update failure reason of withdrawals", "error", result.Error)
 				}
 			} else {
 				// non-revert error, stop processing the subsequent withdrawals
 				log.Error("ProveWithdrawalTransaction", "non-revert error", err.Error())
 				return
 			}
+		} else {
+			pending.AddPendingTxn(unproven.ID, *currentNonce)
+			*currentNonce = *currentNonce + 1
 		}
 	}
 }
 
-func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config) {
+func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, l1Client *core.ClientExt, l2Client *core.ClientExt, cfg core.Config, pending *core.PendingTxnCheck, currentNonce *uint64) {
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
-	maxBlockTime := time.Now().Unix() - cfg.Misc.ChallengeTimeWindow
 
-	unfinalizeds := make([]core.L2ContractEvent, 0)
-	result := db.Order("block_time asc").Where("proven = true AND finalized = false AND block_time < ? AND failure_reason IS NULL", maxBlockTime).Limit(limit).Find(&unfinalizeds)
+	now := time.Now()
+	maxProvenTime := now.Add(-time.Duration(cfg.ChallengeTimeWindow) * time.Second)
+
+	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
+	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
-		log.Error("failed to query l2_contract_events", "error", result.Error)
+		log.Error("failed to query withdrawals", "error", result.Error)
 		return
 	}
 
+	pending.Prune(*currentNonce)
 	for _, unfinalized := range unfinalizeds {
+		// In order to avoid re-processing the same withdrawal
+		if pending.IsPendingTxn(unfinalized.ID) {
+			continue
+		}
+
 		err := processor.FinalizeMessage(ctx, &unfinalized)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal has already been finalized") {
 				// The withdrawal has already finalized, mark it
-				result := db.Model(&unfinalized).Update("finalized", true)
+				result := db.Model(&unfinalized).Update("finalized_time", now)
 				if result.Error != nil {
-					log.Error("failed to update finalized l2_contract_events", "error", result.Error)
+					log.Error("failed to update finalized withdrawals", "error", result.Error)
 				}
 			} else if strings.Contains(err.Error(), "OptimismPortal: withdrawal has not been proven yet") {
 				log.Error("detected a unproven withdrawal when send finalized transaction", "withdrawal", unfinalized)
@@ -158,13 +200,16 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				// Finalized transaction reverted, mark it with the failure reason
 				result := db.Model(&unfinalized).Update("failure_reason", err.Error())
 				if result.Error != nil {
-					log.Error("failed to update failure reason of l2_contract_events", "error", result.Error)
+					log.Error("failed to update failure reason of withdrawals", "error", result.Error)
 				}
 			} else {
 				// non-revert error, stop processing the subsequent withdrawals
 				log.Error("FinalizedMessage", "non-revert error", err.Error())
 				return
 			}
+		} else {
+			pending.AddPendingTxn(unfinalized.ID, *currentNonce)
+			*currentNonce = *currentNonce + 1
 		}
 	}
 }
@@ -178,13 +223,10 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 			return err
 		}
 
-		event := core.L2ContractEvent{
-			BlockTime:       int64(header.Time),
-			BlockHash:       vLog.BlockHash.Hex(),
-			ContractAddress: vLog.Address.Hex(),
-			TransactionHash: vLog.TxHash.Hex(),
-			LogIndex:        int(vLog.Index),
-			EventSignature:  vLog.Topics[0].Hex(),
+		event := core.BotDelegatedWithdrawal{
+			TransactionHash:      vLog.TxHash.Hex(),
+			LogIndex:             int(vLog.Index),
+			InitiatedBlockNumber: int64(header.Number.Uint64()),
 		}
 
 		deduped := db.Clauses(
@@ -200,9 +242,9 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 }
 
 // WatchBotDelegatedWithdrawals watches for new bot-delegated withdrawals and stores them in the database.
-func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, client *core.ClientExt, l2ScannedBlock *core.L2ScannedBlock, cfg core.Config) {
+func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.DB, client *core.ClientExt, l2StartingBlock *core.L2ScannedBlock, cfg core.Config) {
 	timer := time.NewTimer(0)
-	fromBlockNumber := big.NewInt(l2ScannedBlock.Number)
+	fromBlockNumber := big.NewInt(l2StartingBlock.Number)
 
 	for {
 		select {
@@ -212,17 +254,14 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 			timer.Reset(time.Second)
 		}
 
-		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.Misc.LogFilterBlockRange))
-		latestNumber, err := client.BlockNumber(context.Background())
+		toBlockNumber := new(big.Int).Add(fromBlockNumber, big.NewInt(cfg.L2StandardBridgeBot.LogFilterBlockRange))
+		finalizedHeader, err := client.GetHeaderByTag(context.Background(), "finalized")
 		if err != nil {
 			log.Error("call eth_blockNumber", "error", err)
 			continue
 		}
-
-		if latestNumber < uint64(cfg.Misc.ConfirmBlocks) {
-			toBlockNumber = big.NewInt(0)
-		} else if latestNumber-uint64(cfg.Misc.ConfirmBlocks) < toBlockNumber.Uint64() {
-			toBlockNumber = big.NewInt(int64(latestNumber - uint64(cfg.Misc.ConfirmBlocks)))
+		if toBlockNumber.Uint64() > finalizedHeader.Number.Uint64() {
+			toBlockNumber = finalizedHeader.Number
 		}
 
 		if fromBlockNumber.Uint64() > toBlockNumber.Uint64() {
@@ -231,7 +270,7 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 		}
 
 		log.Info("Fetching logs from blocks", "fromBlock", fromBlockNumber, "toBlock", toBlockNumber)
-		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.Misc.L2StandardBridgeBot), core.WithdrawToEventSig())
+		logs, err := getLogs(client, fromBlockNumber, toBlockNumber, common.HexToAddress(cfg.L2StandardBridgeBot.ContractAddress), core.WithdrawToEventSig())
 		if err != nil {
 			log.Error("eth_getLogs", "error", err)
 			continue
@@ -249,8 +288,8 @@ func WatchBotDelegatedWithdrawals(ctx context.Context, log log.Logger, db *gorm.
 			}
 		}
 
-		l2ScannedBlock.Number = toBlockNumber.Int64()
-		result := db.Where("number >= 0").Updates(l2ScannedBlock)
+		l2StartingBlock.Number = toBlockNumber.Int64()
+		result := db.Save(l2StartingBlock)
 		if result.Error != nil {
 			log.Error("update l2_scanned_blocks", "error", result.Error)
 		}
@@ -274,31 +313,16 @@ func getLogs(client *core.ClientExt, fromBlock *big.Int, toBlock *big.Int, contr
 
 // connect connects to the database
 func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
-	if dbConfig.Port != 0 {
-		dsn += fmt.Sprintf(" port=%d", dbConfig.Port)
-	}
-	if dbConfig.User != "" {
-		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
-	}
-	if dbConfig.Password != "" {
-		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
-	}
-
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local", dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
 	gormConfig := gorm.Config{
 		Logger:                 core.NewGormLogger(log),
 		SkipDefaultTransaction: true,
-
-		// The postgres parameter counter for a given query is represented with uint16,
-		// resulting in a parameter limit of 65535. In order to avoid reaching this limit
-		// we'll utilize a batch size of 3k for inserts, well below the limit as long as
-		// the number of columns < 20.
-		CreateBatchSize: 3_000,
+		CreateBatchSize:        3_000,
 	}
 
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 	gorm_, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
-		gorm_, err := gorm.Open(postgres.Open(dsn), &gormConfig)
+		gorm_, err := gorm.Open(mysql.Open(dsn), &gormConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to database: %w", err)
 		}
@@ -314,8 +338,8 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 }
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
-func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, error) {
-	l2ScannedBlock := core.L2ScannedBlock{Number: 0}
+func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
+	l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
 	result := db.Order("number desc").Last(&l2ScannedBlock)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -323,12 +347,21 @@ func queryL2ScannedBlock(db *gorm.DB, cfg *core.Config) (*core.L2ScannedBlock, e
 		} else {
 			return nil, fmt.Errorf("failed to query l2_scanned_blocks: %w", result.Error)
 		}
-	} else {
-		if l2ScannedBlock.Number < cfg.Misc.ConfirmBlocks {
-			l2ScannedBlock.Number = 0
-		} else {
-			l2ScannedBlock.Number -= cfg.Misc.ConfirmBlocks
-		}
 	}
 	return &l2ScannedBlock, nil
+}
+
+// isPendingAndChainNonceEqual checks if the pending nonce and the chain nonce are equal.
+func isPendingAndChainNonceEqual(l1Client *core.ClientExt, address *common.Address) (bool, error) {
+	pendingNonce, err := l1Client.PendingNonceAt(context.Background(), *address)
+	if err != nil {
+		return false, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	latestNonce, err := l1Client.NonceAt(context.Background(), *address, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get latest nonce: %w", err)
+	}
+
+	return pendingNonce == latestNonce, nil
 }

@@ -13,6 +13,10 @@ build-solidity:
 	forge build; \
 	popd;
 
+bindings: build-solidity
+	jq '.abi' contracts/out/L2StandardBridgeBot.sol/L2StandardBridgeBot.json  > contracts/out/L2StandardBridgeBot.sol/L2StandardBridgeBot.abi; \
+	abigen --abi contracts/out/L2StandardBridgeBot.sol/L2StandardBridgeBot.abi --pkg bindings --type L2StandardBridgeBot --out bindings/L2StandardBridgeBot.go
+
 .PHONY: \
 	bot  \
 	build-go \

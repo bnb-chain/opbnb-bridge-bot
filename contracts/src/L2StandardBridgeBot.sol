@@ -2,6 +2,7 @@ pragma solidity 0.8.20;
 
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // See also https://github.com/bnb-chain/opbnb/blob/9505ae88d0ec8f593ee036284c9a13672526a232/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol#L20
 interface IL2StandardBridge {
@@ -15,6 +16,8 @@ interface IL2StandardBridge {
 }
 
 contract L2StandardBridgeBot is Ownable {
+    using SafeERC20 for IERC20;
+
     address public constant L2_STANDARD_BRIDGE_ADDRESS = 0x4200000000000000000000000000000000000010;
     IL2StandardBridge public L2_STANDARD_BRIDGE = IL2StandardBridge(payable(L2_STANDARD_BRIDGE_ADDRESS));
 
@@ -22,11 +25,10 @@ contract L2StandardBridgeBot is Ownable {
 
     uint256 public delegationFee;
 
-    event WithdrawTo(address indexed from, address l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
+    event WithdrawTo(address indexed from, address indexed l2Token, address to, uint256 amount, uint32 minGasLimit, bytes extraData);
 
-    receive() external payable { }
+    event SetDelegationFee(uint256 _delegationFee);
 
-    fallback() payable external { }
 
     constructor(address payable _owner, uint256 _delegationFee) Ownable(_owner) {
         delegationFee = _delegationFee;
@@ -50,8 +52,7 @@ contract L2StandardBridgeBot is Ownable {
             IERC20 l2Token = IERC20(_l2Token);
             bool approveSuccess = l2Token.approve(L2_STANDARD_BRIDGE_ADDRESS, _amount + l2Token.allowance(address(this), L2_STANDARD_BRIDGE_ADDRESS));
             require(approveSuccess, "BEP20 withdrawal: approve failed");
-            bool transferSuccess = l2Token.transferFrom(msg.sender, address(this), _amount);
-            require(transferSuccess, "BEP20 withdrawal: transferFrom failed");
+            l2Token.safeTransferFrom(msg.sender, address(this), _amount);
 
             L2_STANDARD_BRIDGE.withdrawTo{value: 0}(_l2Token, _to, _amount, _minGasLimit, _extraData);
         }
@@ -91,6 +92,10 @@ contract L2StandardBridgeBot is Ownable {
 
     // setDelegationFee set the delegation fee, only owner can call this function.
     function setDelegationFee(uint256 _delegationFee) external onlyOwner {
+        require(_delegationFee > 0, "_delegationFee cannot be less than or equal to 0 BNB");
+        require(_delegationFee <= 1e18, "_delegationFee cannot be more than 1 BNB");
         delegationFee = _delegationFee;
+
+        emit SetDelegationFee(_delegationFee);
     }
 }
