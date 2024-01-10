@@ -1,3 +1,4 @@
+l2-starting-number = 12602733
 propose-time-window = 3600
 challenge-time-window = 604800
 
@@ -22,7 +23,7 @@ l2-output-oracle                = "0x153CAB79f4767E2ff862C94aa49573294B13D169"
 l1-cross-domain-messenger       = "0xd95D508f13f7029CCF0fb61984d5dfD11b879c4f"
 
 [l2-standard-bridge-bot]
-contract_address = "0x1Aa15A27115589E107EC1D2b581ADBB92BBc04b7"
+contract-address = "0x1aa15a27115589e107ec1d2b581adbb92bbc04b7"
 log-filter-block-range = 1000
 
 # See https://github.com/bnb-chain/opbnb-bridge-tokens/blob/main/opbnb.tokenlist.json
