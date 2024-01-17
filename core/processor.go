@@ -2,11 +2,10 @@ package core
 
 import (
 	bindings2 "bnbchain/opbnb-bridge-bot/bindings"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
-
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -15,6 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/status-im/keycard-go/hexutils"
+	"math/big"
+	"os"
 )
 
 type Processor struct {
@@ -57,9 +59,6 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdr
 	// event[i-2]: SentMessage
 	// event[i-1]: SentMessageExtension1
 	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 6 {
-		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
-	}
 
 	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-3))
 	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-2))
@@ -85,20 +84,61 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *BotDelegatedWithdr
 	return withdrawalTx, nil
 }
 
+func (b *Processor) Test() {
+	// Get file name from env "HASH_FILENAME"
+	filename := os.Getenv("HASH_FILENAME")
+
+	f, err := os.Open(filename)
+	if err != nil {
+		b.log.Crit("open file", "filename", filename, "err", err)
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		b.TestInternal(line)
+	}
+
+	if scanner.Err() != nil {
+		b.log.Crit("scanner", "err", scanner.Err())
+	}
+}
+
+func (b *Processor) TestInternal(txhash string) {
+	e := &BotDelegatedWithdrawal{
+		TransactionHash: txhash,
+	}
+
+	_, signerAddress, err := b.cfg.SignerKeyPair()
+	nonce, err := b.L1Client.NonceAt(context.Background(), *signerAddress, nil)
+	if err != nil {
+		b.log.Crit("nonceAt", "err", err)
+	}
+
+	err = b.ProveWithdrawalTransaction(
+		context.Background(),
+		e,
+		nonce,
+	)
+
+	if err != nil {
+		b.log.Info("Detected", "hash", e.TransactionHash, "err", err)
+	} else {
+		b.log.Info("ok", "hash", e.TransactionHash)
+	}
+}
+
 func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *BotDelegatedWithdrawal, nonce uint64) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
 	if err != nil {
 		return err
 	}
 
-	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
-	if vlog == nil {
-		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
-	}
-
-	err = b.CheckByFilterOptions(vlog)
-	if err != nil {
-		return err
+	botDelegatedWithdrawToEvent.LogIndex = int(receipt.Logs[len(receipt.Logs)-1].Index + 1)
+	if len(receipt.Logs) == 6 {
+		botDelegatedWithdrawToEvent.LogIndex = int(receipt.Logs[len(receipt.Logs)-1].Index)
+	} else {
+		botDelegatedWithdrawToEvent.LogIndex = int(receipt.Logs[len(receipt.Logs)-1].Index + 1)
 	}
 
 	l2BlockNumber := receipt.BlockNumber
@@ -108,6 +148,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 	}
 
 	hash, err := b.hashWithdrawal(withdrawalTx)
+	b.log.Info("hashWithdrawal", "hash", hash)
 	if err != nil {
 		return fmt.Errorf("hashWithdrawal err: %v", err)
 	}
@@ -117,7 +158,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return fmt.Errorf("hashMesaageHash err: %v", err)
 	}
 
-	l2OutputIndex, l2OutputProposal, err := b.getLatestL2OutputProposal()
+	l2OutputIndex, l2OutputProposal, err := b.getLatestL2OutputProposal(receipt.BlockNumber)
 	if err != nil {
 		return err
 	}
@@ -167,6 +208,11 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return err
 	}
 
+	//optimismPortalCaller, _ := bindings.NewOptimismPortalCaller(
+	//	b.cfg.L1Contracts.OptimismPortalProxy,
+	//	b.L1Client,
+	//)
+
 	optimismPortalTransactor, _ := bindings.NewOptimismPortalTransactor(
 		b.cfg.L1Contracts.OptimismPortalProxy,
 		b.L1Client,
@@ -175,21 +221,26 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		&bind.TransactOpts{
 			From:     *signerAddress,
 			GasPrice: gasPrice,
+			GasLimit: 607728,
 			Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return types.SignTx(tx, types.NewEIP155Signer(l1ChainId), signerPrivkey)
 			},
-			Nonce: big.NewInt(int64(nonce)),
+			Nonce:  big.NewInt(int64(nonce)),
+			NoSend: false,
 		},
 		*withdrawalTx,
 		l2OutputIndex,
 		outputRootProof,
 		withdrawalProof2Bytes,
 	)
+
+	if signedTx != nil {
+		b.log.Info("ProveWithdrawalTransaction", "err", err, "l2TxHash", botDelegatedWithdrawToEvent.TransactionHash, "tx_hash", signedTx.Hash().Hex(), "tx_data", hexutils.BytesToHex(signedTx.Data()))
+	}
 	if err != nil {
 		return err
 	}
 
-	b.log.Info("ProveWithdrawalTransaction", "tx_hash", signedTx.Hash().Hex())
 	return nil
 }
 
@@ -269,8 +320,8 @@ func (b *Processor) hashWithdrawal(w *bindings.TypesWithdrawalTransaction) (stri
 }
 
 func (b *Processor) hashMessageHash(messageHash string) (string, error) {
-	uint256Type, _ := abi.NewType("uint256", "", nil)
 	bytes32Type, _ := abi.NewType("bytes32", "", nil)
+	uint256Type, _ := abi.NewType("uint256", "", nil)
 	types_ := abi.Arguments{
 		{
 			Type: bytes32Type,
@@ -300,7 +351,7 @@ func (b *Processor) toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog
 	if !(sentMessageLog.Address == b.L2Contracts.L2CrossDomainMessenger &&
 		len(sentMessageLog.Topics) > 1 &&
 		sentMessageLog.Topics[0] == L2CrossDomainMessengerAbi.Events["SentMessage"].ID) {
-		return nil, errors.New("invalid log: not SentMessage event")
+		return nil, fmt.Errorf("invalid log: not SentMessage event %v", sentMessageLog.Index)
 	}
 
 	sentMessageEvent := bindings.L2CrossDomainMessengerSentMessage{}
@@ -490,7 +541,7 @@ func (b *Processor) getMessagePassedMessagesFromReceipt(receipt *types.Receipt) 
 	return messagePassedEvents, nil
 }
 
-func (b *Processor) getLatestL2OutputProposal() (*big.Int, *bindings.TypesOutputProposal, error) {
+func (b *Processor) getLatestL2OutputProposal(receiptL2BlockNumber *big.Int) (*big.Int, *bindings.TypesOutputProposal, error) {
 	l2OutputOracleCaller, err := bindings.NewL2OutputOracleCaller(
 		b.cfg.L1Contracts.L2OutputOracleProxy,
 		b.L1Client,
@@ -499,10 +550,15 @@ func (b *Processor) getLatestL2OutputProposal() (*big.Int, *bindings.TypesOutput
 		return nil, nil, fmt.Errorf("NewL2OutputOracleCaller err: %v", err)
 	}
 
-	// [getBedrockMessageProof](https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1916)
+	//// [getBedrockMessageProof](https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1916)
+	//l2OutputIndex, err := l2OutputOracleCaller.GetL2OutputIndexAfter(&bind.CallOpts{}, receiptL2BlockNumber)
+	//if err != nil {
+	//	return nil, nil, fmt.Errorf("GetL2OutputIndexAfter err: %v", err)
+	//}
+
 	l2OutputIndex, err := l2OutputOracleCaller.LatestOutputIndex(&bind.CallOpts{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetL2OutputIndexAfter err: %v", err)
+		return nil, nil, fmt.Errorf("LatestOutputIndex err: %v", err)
 	}
 
 	outputProposal, err := l2OutputOracleCaller.GetL2Output(&bind.CallOpts{}, l2OutputIndex)

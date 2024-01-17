@@ -46,28 +46,31 @@ func RunCommand(ctx *cli.Context) error {
 	}
 
 	// Connect to database and ensure schemas initialized
-	db, err := connect(logger, cfg.DB)
-	if err != nil {
-		return fmt.Errorf("failed to connect database: %w", err)
-	}
-	err = db.AutoMigrate(&core.L2ScannedBlock{})
-	if err != nil {
-		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
-	}
-	err = db.AutoMigrate(&core.BotDelegatedWithdrawal{})
-	if err != nil {
-		return fmt.Errorf("failed to migrate withdrawals: %w", err)
-	}
+	// db, err := connect(logger, cfg.DB)
+	//if err != nil {
+	//	return fmt.Errorf("failed to connect database: %w", err)
+	//}
+	//err = db.AutoMigrate(&core.L2ScannedBlock{})
+	//if err != nil {
+	//	return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
+	//}
+	//err = db.AutoMigrate(&core.BotDelegatedWithdrawal{})
+	//if err != nil {
+	//	return fmt.Errorf("failed to migrate withdrawals: %w", err)
+	//}
 
-	l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
-	if err != nil {
-		return err
-	}
+	processor := core.NewProcessor(logger, l1Client, l2Client, cfg)
+	processor.Test()
 
-	go WatchBotDelegatedWithdrawals(ctx.Context, logger, db, l2Client, l2ScannedBlock, cfg)
-	go ProcessBotDelegatedWithdrawals(ctx.Context, logger, db, l1Client, l2Client, cfg)
+	//l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
+	//if err != nil {
+	//	return err
+	//}
 
-	<-ctx.Context.Done()
+	//go WatchBotDelegatedWithdrawals(ctx.Context, logger, db, l2Client, l2ScannedBlock, cfg)
+	//go ProcessBotDelegatedWithdrawals(ctx.Context, logger, db, l1Client, l2Client, cfg)
+
+	// <-ctx.Context.Done()
 	return nil
 }
 
