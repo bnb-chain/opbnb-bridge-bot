@@ -179,6 +179,26 @@ library MerkleTrie {
                     RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
                     currentNodeID = _getNodeID(nextNode);
                     currentKeyIndex += 1;
+
+                    if (nextNode.length < 32) {
+//                        TrieNode memory smallNode = TrieNode({ encoded: currentNodeID, decoded: RLPReader.readList(currentNodeID) });
+//                        bytes memory value = RLPReader.readBytes(smallNode.decoded[1]);
+
+
+                        bytes memory value = RLPReader.readBytes( RLPReader.readList(currentNodeID)[1]);
+                        require(
+                            value.length > 0,
+                            "MerkleTrie: value length must be greater than zero (branch)"
+                        );
+
+                        // Extra proof elements are not allowed.
+                        require(
+                            i == proof.length - 1,
+                            "MerkleTrie: value node must be last node in proof (branch)"
+                        );
+
+                        return value;
+                    }
                 }
             } else if (currentNode.decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
 
@@ -235,8 +255,26 @@ library MerkleTrie {
                     // Prefix of 0 or 1 means this is an extension node. We move onto the next node
                     // in the proof and increment the key index by the length of the path remainder
                     // which is equal to the shared nibble length.
-                    currentNodeID = _getNodeID(currentNode.decoded[1]);
+                    RLPReader.RLPItem memory nextNode = currentNode.decoded[1];
+                    currentNodeID = _getNodeID(nextNode);
                     currentKeyIndex += sharedNibbleLength;
+
+                    if (nextNode.length < 32) {
+                        bytes memory value = RLPReader.readBytes( RLPReader.readList(currentNodeID)[1]);
+                        console.log("       => PREFIX_LEAF");
+                        require(
+                            value.length > 0,
+                            "MerkleTrie: value length must be greater than zero (branch)"
+                        );
+
+                        // Extra proof elements are not allowed.
+                        require(
+                            i == proof.length - 1,
+                            "MerkleTrie: value node must be last node in proof (branch)"
+                        );
+
+                        return value;
+                    }
                 } else {
                     revert("MerkleTrie: received a node with an unknown prefix");
                 }
@@ -266,6 +304,7 @@ library MerkleTrie {
                 ++i;
             }
         }
+
         return proof;
     }
 
