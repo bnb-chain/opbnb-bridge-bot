@@ -70,7 +70,8 @@ func RunCommand(ctx *cli.Context) error {
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		err := http.ListenAndServe(":8080", nil)
+		http.Handle("/debug/metrics/prometheus", promhttp.Handler())
+		err := http.ListenAndServe(":6060", nil)
 		if err != nil {
 			logger.Error("failed to start prometheus server", "error", err)
 		}
