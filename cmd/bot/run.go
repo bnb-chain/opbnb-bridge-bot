@@ -63,6 +63,7 @@ func RunCommand(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	logger.Info("starting from block", "blockNumber", l2ScannedBlock.Number)
 
 	go WatchBotDelegatedWithdrawals(ctx.Context, logger, db, l2Client, l2ScannedBlock, cfg)
 	go ProcessBotDelegatedWithdrawals(ctx.Context, logger, db, l1Client, l2Client, cfg)
@@ -339,11 +340,12 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
 func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
-	l2ScannedBlock := core.L2ScannedBlock{Number: l2StartingNumber}
-	result := db.Order("number desc").Last(&l2ScannedBlock)
-	if result.Error != nil {
+	l2ScannedBlock := core.L2ScannedBlock{}
+	if result := db.Order("number desc").Last(&l2ScannedBlock); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			l2ScannedBlock.Number = l2StartingNumber
 			db.Create(&l2ScannedBlock)
+			return &l2ScannedBlock, nil
 		} else {
 			return nil, fmt.Errorf("failed to query l2_scanned_blocks: %w", result.Error)
 		}
