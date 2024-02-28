@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -61,10 +63,21 @@ func RunCommand(ctx *cli.Context) error {
 
 	l2ScannedBlock, err := queryL2ScannedBlock(db, cfg.L2StartingNumber)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to query l2_scanned_blocks: %w", err)
+	} else {
+		logger.Info("starting from block", "blockNumber", l2ScannedBlock.Number)
 	}
-	logger.Info("starting from block", "blockNumber", l2ScannedBlock.Number)
 
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.Handle("/debug/metrics/prometheus", promhttp.Handler())
+		err := http.ListenAndServe(":6060", nil)
+		if err != nil {
+			logger.Error("failed to start prometheus server", "error", err)
+		}
+	}()
+
+	go core.StartMetrics(ctx.Context, &cfg, &l1Client.Client, db, logger)
 	go WatchBotDelegatedWithdrawals(ctx.Context, logger, db, l2Client, l2ScannedBlock, cfg)
 	go ProcessBotDelegatedWithdrawals(ctx.Context, logger, db, l1Client, l2Client, cfg)
 
