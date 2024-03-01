@@ -1,7 +1,6 @@
 package core
 
 import (
-	bindings2 "bnbchain/opbnb-bridge-bot/bindings"
 	"context"
 	"errors"
 	"fmt"
@@ -51,19 +50,18 @@ func NewProcessor(
 func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
-	// event[i-5]: WithdrawalInitiated
-	// event[i-4]: ETHBridgeInitiated
-	// event[i-3]: MessagePassed
-	// event[i-2]: SentMessage
-	// event[i-1]: SentMessageExtension1
-	// event[i]  : L2StandardBridgeBot.WithdrawTo
-	if botDelegatedWithdrawToEvent.LogIndex < 5 || len(receipt.Logs) < 6 {
-		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
+	// event[i]: WithdrawalInitiated
+	// event[i+1]: ETHBridgeInitiated
+	// event[i+2]: MessagePassed
+	// event[i+3]: SentMessage
+	// event[i+4]: SentMessageExtension1
+	if botDelegatedWithdrawToEvent.LogIndex+4 > len(receipt.Logs) {
+		return nil, fmt.Errorf("invalid WithdrawalInitiatedLog: %v", botDelegatedWithdrawToEvent)
 	}
 
-	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-3))
-	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-2))
-	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex-1))
+	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+2))
+	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+3))
+	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+4))
 	if messagePassedLog == nil || sentMessageLog == nil || sentMessageExtension1Log == nil {
 		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
 	}
@@ -96,15 +94,15 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
 	}
 
-	err = b.CheckByFilterOptions(vlog)
-	if err != nil {
-		return err
-	}
-
 	l2BlockNumber := receipt.BlockNumber
 	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
 	if err != nil {
 		return fmt.Errorf("toWithdrawal err: %v", err)
+	}
+
+	err = b.CheckByFilterOptions(vlog, withdrawalTx)
+	if err != nil {
+		return err
 	}
 
 	hash, err := b.hashWithdrawal(withdrawalTx)
@@ -205,14 +203,14 @@ func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToE
 		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
 	}
 
-	err = b.CheckByFilterOptions(vlog)
-	if err != nil {
-		return err
-	}
-
 	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
 	if err != nil {
 		return fmt.Errorf("toWithdrawal err: %v", err)
+	}
+
+	err = b.CheckByFilterOptions(vlog, withdrawalTx)
+	if err != nil {
+		return err
 	}
 
 	l1ChainId, err := b.L1Client.ChainID(ctx)
@@ -543,39 +541,26 @@ func (b *Processor) toLowLevelMessage(
 	return &withdrawalTx, nil
 }
 
-func (b *Processor) CheckByFilterOptions(vlog *types.Log) error {
-	L2StandardBridgeBotAbi, _ := bindings2.L2StandardBridgeBotMetaData.GetAbi()
-	withdrawToEvent := bindings2.L2StandardBridgeBotWithdrawTo{}
-	indexedArgs := func(arguments abi.Arguments) abi.Arguments {
-		indexedArgs := abi.Arguments{}
-		for _, arg := range arguments {
-			if arg.Indexed {
-				indexedArgs = append(indexedArgs, arg)
-			}
-		}
-		return indexedArgs
-	}
-
-	err := abi.ParseTopics(&withdrawToEvent, indexedArgs(L2StandardBridgeBotAbi.Events["WithdrawTo"].Inputs), vlog.Topics[1:])
+func (b *Processor) CheckByFilterOptions(vlog *types.Log, withdrawalTx *bindings.TypesWithdrawalTransaction) error {
+	L2StandardBridgeAbi, _ := bindings.L2StandardBridgeMetaData.GetAbi()
+	withdrawalInitiated := bindings.L2StandardBridgeWithdrawalInitiated{}
+	err := abi.ParseTopics(&withdrawalInitiated, indexedArgs(L2StandardBridgeAbi.Events["WithdrawalInitiated"].Inputs), vlog.Topics[1:])
 	if err != nil {
-		return fmt.Errorf("parse indexed event arguments from log.topics of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+		return fmt.Errorf("parse indexed event arguments from log.topics of L2StandardBridgeWithdrawalInitiated event, err: %v", err)
 	}
-
-	err = L2StandardBridgeBotAbi.UnpackIntoInterface(&withdrawToEvent, "WithdrawTo", vlog.Data)
+	err = L2StandardBridgeAbi.UnpackIntoInterface(&withdrawalInitiated, "WithdrawalInitiated", vlog.Data)
 	if err != nil {
-		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeBotWithdrawTo event, err: %v", err)
+		return fmt.Errorf("parse non-indexed event arguments from log.data of L2StandardBridgeWithdrawalInitiated event, err: %v", err)
 	}
-
-	if !IsL2TokenWhitelisted(b.whitelistL2TokenMap, &withdrawToEvent.L2Token) {
-		return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawToEvent.L2Token)
+	if !IsL2TokenWhitelisted(b.whitelistL2TokenMap, &withdrawalInitiated.L2Token) {
+		return fmt.Errorf("filtered: token is not whitelisted, l2-token: %s", withdrawalInitiated.L2Token)
 	}
-	if !IsMinGasLimitValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, withdrawToEvent.MinGasLimit) {
-		return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawToEvent.MinGasLimit)
+	if !IsExtraDataValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, &withdrawalInitiated.ExtraData) {
+		return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawalInitiated.ExtraData))
 	}
-	if !IsExtraDataValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, &withdrawToEvent.ExtraData) {
-		return fmt.Errorf("filtered: extraData is too large, extraDataSize: %d", len(withdrawToEvent.ExtraData))
+	if !IsMinGasLimitValid(b.cfg.L2StandardBridgeBot.UpperMinGasLimit, uint32(withdrawalTx.GasLimit.Uint64())) {
+		return fmt.Errorf("filtered: minGasLimit is too large, minGasLimit: %d", withdrawalTx.GasLimit)
 	}
-
 	return nil
 }
 
@@ -605,4 +590,14 @@ func IsExtraDataValid(upperExtraDataSize *uint32, extraData *[]byte) bool {
 	}
 
 	return len(*extraData) <= int(*upperExtraDataSize)
+}
+
+func indexedArgs(arguments abi.Arguments) abi.Arguments {
+	indexedArgs := abi.Arguments{}
+	for _, arg := range arguments {
+		if arg.Indexed {
+			indexedArgs = append(indexedArgs, arg)
+		}
+	}
+	return indexedArgs
 }
