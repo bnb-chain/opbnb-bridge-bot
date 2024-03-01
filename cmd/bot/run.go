@@ -56,7 +56,7 @@ func RunCommand(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
 	}
-	err = db.AutoMigrate(&core.BotDelegatedWithdrawal{})
+	err = db.AutoMigrate(&core.WithdrawalInitiatedLog{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate withdrawals: %w", err)
 	}
@@ -130,7 +130,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 
-	unprovens := make([]core.BotDelegatedWithdrawal, 0)
+	unprovens := make([]core.WithdrawalInitiatedLog, 0)
 	result := db.Order("id asc").Where("proven_time IS NULL AND initiated_block_number <= ? AND failure_reason IS NULL", latestProposedNumber.Uint64()).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
@@ -182,7 +182,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	now := time.Now()
 	maxProvenTime := now.Add(-time.Duration(cfg.ChallengeTimeWindow) * time.Second)
 
-	unfinalizeds := make([]core.BotDelegatedWithdrawal, 0)
+	unfinalizeds := make([]core.WithdrawalInitiatedLog, 0)
 	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
@@ -237,7 +237,7 @@ func storeLogs(db *gorm.DB, client *core.ClientExt, logs []types.Log) error {
 			return err
 		}
 
-		event := core.BotDelegatedWithdrawal{
+		event := core.WithdrawalInitiatedLog{
 			TransactionHash:      vLog.TxHash.Hex(),
 			LogIndex:             int(vLog.Index),
 			InitiatedBlockNumber: int64(header.Number.Uint64()),

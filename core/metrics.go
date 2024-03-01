@@ -83,14 +83,14 @@ func StartMetrics(ctx context.Context, cfg *Config, l1Client *ethclient.Client, 
 		}
 		FailedWithdrawals.Set(float64(failedCnt))
 
-		firstUnproven := BotDelegatedWithdrawal{}
+		firstUnproven := WithdrawalInitiatedLog{}
 		result = db.Table("bot_delegated_withdrawals").Order("id asc").Where("proven_time IS NULL AND failure_reason IS NULL").First(&firstUnproven)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)
 		}
 		EarliestUnProvenWithdrawalBlockNumber.Set(float64(firstUnproven.InitiatedBlockNumber))
 
-		firstUnfinalized := BotDelegatedWithdrawal{}
+		firstUnfinalized := WithdrawalInitiatedLog{}
 		result = db.Table("bot_delegated_withdrawals").Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").First(&firstUnfinalized)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)
