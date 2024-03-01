@@ -2,7 +2,7 @@ package core
 
 import "time"
 
-type L2ScannedBlock struct {
+type L2ScannedBlockV2 struct {
 	Number int64 `gorm:"type:integer;primarykey"`
 }
 
