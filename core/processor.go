@@ -47,7 +47,7 @@ func NewProcessor(
 	return &Processor{log, l1Client, l2Client, cfg, l2Contracts, whitelistL2TokenMap}
 }
 
-func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
+func (b *Processor) toWithdrawal(wi *WithdrawalInitiatedLog, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
 	// event[i]: WithdrawalInitiated
@@ -55,11 +55,11 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiate
 	// event[i+2]: MessagePassed
 	// event[i+3]: SentMessage
 	// event[i+4]: SentMessageExtension1
-	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+2))
-	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+3))
-	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+4))
+	messagePassedLog := GetLogByLogIndex(receipt, uint(wi.LogIndex+2))
+	sentMessageLog := GetLogByLogIndex(receipt, uint(wi.LogIndex+3))
+	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(wi.LogIndex+4))
 	if messagePassedLog == nil || sentMessageLog == nil || sentMessageExtension1Log == nil {
-		return nil, fmt.Errorf("invalid botDelegatedWithdrawToEvent: %v", botDelegatedWithdrawToEvent)
+		return nil, fmt.Errorf("invalid wi: %v", wi)
 	}
 
 	sentMessageEvent, err := b.toL2CrossDomainMessengerSentMessageExtension1(sentMessageLog, sentMessageExtension1Log)
@@ -79,19 +79,19 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiate
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegatedWithdrawToEvent *WithdrawalInitiatedLog, nonce uint64) error {
-	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, wi *WithdrawalInitiatedLog, nonce uint64) error {
+	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(wi.TransactionHash))
 	if err != nil {
 		return err
 	}
 
-	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	vlog := GetLogByLogIndex(receipt, uint(wi.LogIndex))
 	if vlog == nil {
-		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", wi.LogIndex, receipt)
 	}
 
 	l2BlockNumber := receipt.BlockNumber
-	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
+	withdrawalTx, err := b.toWithdrawal(wi, receipt)
 	if err != nil {
 		return fmt.Errorf("toWithdrawal err: %v", err)
 	}
@@ -188,18 +188,18 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, botDelegated
 }
 
 // FinalizeMessage https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1611
-func (b *Processor) FinalizeMessage(ctx context.Context, botDelegatedWithdrawToEvent *WithdrawalInitiatedLog) error {
-	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(botDelegatedWithdrawToEvent.TransactionHash))
+func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiatedLog) error {
+	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(wi.TransactionHash))
 	if err != nil {
 		return err
 	}
 
-	vlog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex))
+	vlog := GetLogByLogIndex(receipt, uint(wi.LogIndex))
 	if vlog == nil {
-		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", botDelegatedWithdrawToEvent.LogIndex, receipt)
+		return fmt.Errorf("cannot find log within receipt, logIndex: %d, receitp: %v", wi.LogIndex, receipt)
 	}
 
-	withdrawalTx, err := b.toWithdrawal(botDelegatedWithdrawToEvent, receipt)
+	withdrawalTx, err := b.toWithdrawal(wi, receipt)
 	if err != nil {
 		return fmt.Errorf("toWithdrawal err: %v", err)
 	}

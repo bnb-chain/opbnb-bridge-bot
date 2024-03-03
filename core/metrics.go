@@ -55,7 +55,7 @@ func StartMetrics(ctx context.Context, cfg *Config, l1Client *ethclient.Client, 
 		}
 		TxSignerBalance.Set(float64(balance.Int64()))
 
-		var scannedBlock L2ScannedBlockV2
+		var scannedBlock L2ScannedBlock
 		result := db.Last(&scannedBlock)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query scanned block", "error", result.Error)

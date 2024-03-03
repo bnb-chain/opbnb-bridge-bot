@@ -95,7 +95,7 @@ func NewIndexer(log log.Logger, db *gorm.DB, l2Client *ClientExt, cfg Config) *I
 }
 
 // Start watches for new bot-delegated withdrawals and stores them in the database.
-func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlockV2) {
+func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlock) {
 	timer := time.NewTimer(0)
 	fromBlockNumber := big.NewInt(l2ScannedBlock.Number)
 
