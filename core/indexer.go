@@ -98,6 +98,7 @@ func NewIndexer(log log.Logger, db *gorm.DB, l2Client *ClientExt, cfg Config) *I
 func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlock) {
 	timer := time.NewTimer(0)
 	fromBlockNumber := big.NewInt(l2ScannedBlock.Number)
+	lastTimeL2ScannedBlock := time.Now()
 
 	for {
 		select {
@@ -140,10 +141,14 @@ func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlock) {
 			}
 		}
 
-		l2ScannedBlock.Number = toBlockNumber.Int64()
-		result := i.db.Save(l2ScannedBlock)
-		if result.Error != nil {
-			log.Error("update l2_scanned_blocks", "error", result.Error)
+		if lastTimeL2ScannedBlock.Before(time.Now().Add(-10 * time.Minute)) {
+			l2ScannedBlock.Number = toBlockNumber.Int64()
+			result := i.db.Save(l2ScannedBlock)
+			if result.Error != nil {
+				log.Error("update l2_scanned_blocks", "error", result.Error)
+			}
+
+			lastTimeL2ScannedBlock = time.Now()
 		}
 
 		fromBlockNumber = new(big.Int).Add(toBlockNumber, big.NewInt(1))
