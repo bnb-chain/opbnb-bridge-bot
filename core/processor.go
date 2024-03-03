@@ -55,10 +55,6 @@ func (b *Processor) toWithdrawal(botDelegatedWithdrawToEvent *WithdrawalInitiate
 	// event[i+2]: MessagePassed
 	// event[i+3]: SentMessage
 	// event[i+4]: SentMessageExtension1
-	if botDelegatedWithdrawToEvent.LogIndex+4 > len(receipt.Logs) {
-		return nil, fmt.Errorf("invalid WithdrawalInitiatedLog: %v", botDelegatedWithdrawToEvent)
-	}
-
 	messagePassedLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+2))
 	sentMessageLog := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+3))
 	sentMessageExtension1Log := GetLogByLogIndex(receipt, uint(botDelegatedWithdrawToEvent.LogIndex+4))
