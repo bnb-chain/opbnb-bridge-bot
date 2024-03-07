@@ -218,7 +218,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 				}
 			} else {
 				// non-revert error, stop processing the subsequent withdrawals
-				log.Error("FinalizedMessage", "non-revert error", err.Error())
+				log.Error("FinalizedMessage", "non-revert error", err.Error(), "wi", unfinalized.ID)
 				return
 			}
 		} else {

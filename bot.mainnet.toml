@@ -1,6 +1,6 @@
 l2-starting-number = 13105254
 propose-time-window = 3600
-challenge-time-window = 604800
+challenge-time-window = 60480 # 1day
 
 [rpcs]
 l1-rpc = "$OPBNB_BRIDGE_BOT_L1_RPC"
