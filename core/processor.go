@@ -242,6 +242,35 @@ func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiated
 	return nil
 }
 
+func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*big.Int, error) {
+	optimismPortal, err := bindings.NewOptimismPortalCaller(b.cfg.L1Contracts.OptimismPortalProxy, b.L1Client)
+	if err != nil {
+		return nil, err
+	}
+
+	receipt, err := b.L1Client.TransactionReceipt(context.Background(), common.HexToHash(wi.TransactionHash))
+	if err != nil {
+		return nil, err
+	}
+
+	withdrawal, err := b.toWithdrawal(wi, receipt)
+	if err != nil {
+		return nil, err
+	}
+
+	withdrawalHash, err := b.hashWithdrawal(withdrawal)
+	if err != nil {
+		return nil, err
+	}
+
+	provenWithdrawal, err := optimismPortal.ProvenWithdrawals(nil, common.HexToHash(withdrawalHash))
+	if err != nil {
+		return nil, err
+	}
+
+	return provenWithdrawal.Timestamp, nil
+}
+
 func (b *Processor) hashWithdrawal(w *bindings.TypesWithdrawalTransaction) (string, error) {
 	uint256Type, _ := abi.NewType("uint256", "", nil)
 	addressType, _ := abi.NewType("address", "", nil)
