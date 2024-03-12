@@ -13,8 +13,6 @@ build-solidity:
 	forge build; \
 	popd;
 
-https://raw.githubusercontent.com/ethereum-optimism/optimism/005be54bde97747b6f1669030721cd4e0c14bc69/op-bindings/bindings/optimismportal.go
-
 bindings: bindings-L2StandardBridgeBot bindings-OptimismPortal
 
 bindings-L2StandardBridgeBot: build-solidity
