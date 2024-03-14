@@ -144,12 +144,16 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 			continue
 		}
 
-		now := time.Now()
 		err := processor.ProveWithdrawalTransaction(ctx, &unproven, *currentNonce)
 		if err != nil {
 			if strings.Contains(err.Error(), "OptimismPortal: withdrawal hash has already been proven") {
 				// The withdrawal has already proven, mark it
-				result := db.Model(&unproven).Update("proven_time", now)
+				provenTime, err := processor.GetProvenTime(&unproven)
+				if err != nil {
+					log.Error("fail to get proven time", "error", err)
+				}
+
+				result := db.Model(&unproven).Update("proven_time", provenTime)
 				if result.Error != nil {
 					log.Error("failed to update proven withdrawals", "error", result.Error)
 				}
