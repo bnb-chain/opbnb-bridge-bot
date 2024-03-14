@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -242,7 +243,7 @@ func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiated
 	return nil
 }
 
-func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*big.Int, error) {
+func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*time.Time, error) {
 	optimismPortal, err := bindings.NewOptimismPortalCaller(b.cfg.L1Contracts.OptimismPortalProxy, b.L1Client)
 	if err != nil {
 		return nil, err
@@ -268,7 +269,10 @@ func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*big.Int, error) 
 		return nil, fmt.Errorf("optimismPortal.ProvenWithdrawals err: %v, wi: %v", err, wi)
 	}
 
-	return provenWithdrawal.Timestamp, nil
+	unixTimestamp := provenWithdrawal.Timestamp.Int64()
+	t := time.Unix(unixTimestamp, 0)
+	b.log.Info("GetProvenTime", "time", t.String(), "unixTimestamp", unixTimestamp)
+	return &t, nil
 }
 
 func (b *Processor) hashWithdrawal(w *bindings.TypesWithdrawalTransaction) (string, error) {
