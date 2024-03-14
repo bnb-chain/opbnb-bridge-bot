@@ -248,7 +248,7 @@ func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*big.Int, error) 
 		return nil, err
 	}
 
-	receipt, err := b.L1Client.TransactionReceipt(context.Background(), common.HexToHash(wi.TransactionHash))
+	receipt, err := b.L2Client.TransactionReceipt(context.Background(), common.HexToHash(wi.TransactionHash))
 	if err != nil {
 		return nil, fmt.Errorf("TransactionReceipt err: %v, wi: %v", err, wi)
 	}
