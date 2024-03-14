@@ -48,7 +48,7 @@ func NewProcessor(
 	return &Processor{log, l1Client, l2Client, cfg, l2Contracts, whitelistL2TokenMap}
 }
 
-func (b *Processor) toWithdrawal(wi *WithdrawalInitiatedLog, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
+func (b *Processor) toWithdrawal(wi *WithdrawalInitiatedLogV2, receipt *types.Receipt) (*bindings.TypesWithdrawalTransaction, error) {
 	// Events flow:
 	//
 	// event[i]: WithdrawalInitiated
@@ -80,7 +80,7 @@ func (b *Processor) toWithdrawal(wi *WithdrawalInitiatedLog, receipt *types.Rece
 	return withdrawalTx, nil
 }
 
-func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, wi *WithdrawalInitiatedLog, nonce uint64) error {
+func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, wi *WithdrawalInitiatedLogV2, nonce uint64) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(wi.TransactionHash))
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, wi *Withdraw
 }
 
 // FinalizeMessage https://github.com/ethereum-optimism/optimism/blob/d90e7818de894f0bc93ae7b449b9049416bda370/packages/sdk/src/cross-chain-messenger.ts#L1611
-func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiatedLog) error {
+func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiatedLogV2) error {
 	receipt, err := b.L2Client.TransactionReceipt(ctx, common.HexToHash(wi.TransactionHash))
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ func (b *Processor) FinalizeMessage(ctx context.Context, wi *WithdrawalInitiated
 	return nil
 }
 
-func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*time.Time, error) {
+func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLogV2) (*time.Time, error) {
 	optimismPortal, err := bindings.NewOptimismPortalCaller(b.cfg.L1Contracts.OptimismPortalProxy, b.L1Client)
 	if err != nil {
 		return nil, err
