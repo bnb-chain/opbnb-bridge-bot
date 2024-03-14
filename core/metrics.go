@@ -63,35 +63,35 @@ func StartMetrics(ctx context.Context, cfg *Config, l1Client *ethclient.Client, 
 		ScannedBlockNumber.Set(float64(scannedBlock.Number))
 
 		var unprovenCnt int64
-		result = db.Table("withdrawal_initiated_logs").Where("proven_time IS NULL AND failure_reason IS NULL").Count(&unprovenCnt)
+		result = db.Table("withdrawal_initiated_log_v2").Where("proven_time IS NULL AND failure_reason IS NULL").Count(&unprovenCnt)
 		if result.Error != nil {
 			logger.Error("failed to count withdrawals", "error", result.Error)
 		}
 		UnprovenWithdrawals.Set(float64(unprovenCnt))
 
 		var unfinalizedCnt int64
-		result = db.Table("withdrawal_initiated_logs").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").Count(&unfinalizedCnt)
+		result = db.Table("withdrawal_initiated_log_v2").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").Count(&unfinalizedCnt)
 		if result.Error != nil {
 			logger.Error("failed to count withdrawals", "error", result.Error)
 		}
 		UnfinalizedWithdrawals.Set(float64(unfinalizedCnt))
 
 		var failedCnt int64
-		result = db.Table("withdrawal_initiated_logs").Where("failure_reason IS NOT NULL").Count(&failedCnt)
+		result = db.Table("withdrawal_initiated_log_v2").Where("failure_reason IS NOT NULL").Count(&failedCnt)
 		if result.Error != nil {
 			logger.Error("failed to count withdrawals", "error", result.Error)
 		}
 		FailedWithdrawals.Set(float64(failedCnt))
 
 		firstUnproven := WithdrawalInitiatedLogV2{}
-		result = db.Table("withdrawal_initiated_logs").Order("id asc").Where("proven_time IS NULL AND failure_reason IS NULL").First(&firstUnproven)
+		result = db.Table("withdrawal_initiated_log_v2").Order("id asc").Where("proven_time IS NULL AND failure_reason IS NULL").First(&firstUnproven)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)
 		}
 		EarliestUnProvenWithdrawalBlockNumber.Set(float64(firstUnproven.InitiatedBlockNumber))
 
 		firstUnfinalized := WithdrawalInitiatedLogV2{}
-		result = db.Table("withdrawal_initiated_logs").Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").First(&firstUnfinalized)
+		result = db.Table("withdrawal_initiated_log_v2").Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").First(&firstUnfinalized)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)
 		}
