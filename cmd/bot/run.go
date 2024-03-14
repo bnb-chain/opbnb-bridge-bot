@@ -49,11 +49,11 @@ func RunCommand(ctx *cli.Context) error {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	err = db.AutoMigrate(&core.L2ScannedBlock{})
+	err = db.AutoMigrate(&core.L2ScannedBlockV2{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate l2_scanned_blocks: %w", err)
 	}
-	err = db.AutoMigrate(&core.WithdrawalInitiatedLog{})
+	err = db.AutoMigrate(&core.WithdrawalInitiatedLogV2{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate withdrawals: %w", err)
 	}
@@ -130,7 +130,7 @@ func ProcessUnprovenBotDelegatedWithdrawals(ctx context.Context, log log.Logger,
 	processor := core.NewProcessor(log, l1Client, l2Client, cfg)
 	limit := 1000
 
-	unprovens := make([]core.WithdrawalInitiatedLog, 0)
+	unprovens := make([]core.WithdrawalInitiatedLogV2, 0)
 	result := db.Order("id asc").Where("proven_time IS NULL AND initiated_block_number <= ? AND failure_reason IS NULL", latestProposedNumber.Uint64()).Limit(limit).Find(&unprovens)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
@@ -186,7 +186,7 @@ func ProcessUnfinalizedBotDelegatedWithdrawals(ctx context.Context, log log.Logg
 	now := time.Now()
 	maxProvenTime := now.Add(-time.Duration(cfg.ChallengeTimeWindow) * time.Second)
 
-	unfinalizeds := make([]core.WithdrawalInitiatedLog, 0)
+	unfinalizeds := make([]core.WithdrawalInitiatedLogV2, 0)
 	result := db.Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND proven_time < ? AND failure_reason IS NULL", maxProvenTime).Limit(limit).Find(&unfinalizeds)
 	if result.Error != nil {
 		log.Error("failed to query withdrawals", "error", result.Error)
@@ -259,8 +259,8 @@ func connect(log log.Logger, dbConfig config.DBConfig) (*gorm.DB, error) {
 }
 
 // queryL2ScannedBlock queries the l2_scanned_blocks table for the last scanned block
-func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlock, error) {
-	l2ScannedBlock := core.L2ScannedBlock{}
+func queryL2ScannedBlock(db *gorm.DB, l2StartingNumber int64) (*core.L2ScannedBlockV2, error) {
+	l2ScannedBlock := core.L2ScannedBlockV2{}
 	if result := db.Order("number desc").Last(&l2ScannedBlock); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			l2ScannedBlock.Number = l2StartingNumber

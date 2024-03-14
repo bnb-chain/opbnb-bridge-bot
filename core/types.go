@@ -2,14 +2,14 @@ package core
 
 import "time"
 
-type L2ScannedBlock struct {
+type L2ScannedBlockV2 struct {
 	Number int64 `gorm:"type:integer;primarykey"`
 }
 
-// WithdrawalInitiatedLog is parsed record that represent a withdrawal.
+// WithdrawalInitiatedLogV2 is parsed record that represent a withdrawal.
 //
 // See also [L2StandardBridge.WithdrawalInitiated](https://github.com/bnb-chain/opbnb/blob/develop/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol#L21-L39)
-type WithdrawalInitiatedLog struct {
+type WithdrawalInitiatedLogV2 struct {
 	// ID is the incrementing primary key.
 	ID uint `gorm:"primarykey"`
 

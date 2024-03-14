@@ -55,7 +55,7 @@ func StartMetrics(ctx context.Context, cfg *Config, l1Client *ethclient.Client, 
 		}
 		TxSignerBalance.Set(float64(balance.Int64()))
 
-		var scannedBlock L2ScannedBlock
+		var scannedBlock L2ScannedBlockV2
 		result := db.Last(&scannedBlock)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query scanned block", "error", result.Error)
@@ -83,14 +83,14 @@ func StartMetrics(ctx context.Context, cfg *Config, l1Client *ethclient.Client, 
 		}
 		FailedWithdrawals.Set(float64(failedCnt))
 
-		firstUnproven := WithdrawalInitiatedLog{}
+		firstUnproven := WithdrawalInitiatedLogV2{}
 		result = db.Table("withdrawal_initiated_logs").Order("id asc").Where("proven_time IS NULL AND failure_reason IS NULL").First(&firstUnproven)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)
 		}
 		EarliestUnProvenWithdrawalBlockNumber.Set(float64(firstUnproven.InitiatedBlockNumber))
 
-		firstUnfinalized := WithdrawalInitiatedLog{}
+		firstUnfinalized := WithdrawalInitiatedLogV2{}
 		result = db.Table("withdrawal_initiated_logs").Order("id asc").Where("finalized_time IS NULL AND proven_time IS NOT NULL AND failure_reason IS NULL").First(&firstUnfinalized)
 		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("failed to query withdrawals", "error", result.Error)

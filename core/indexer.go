@@ -95,7 +95,7 @@ func NewIndexer(log log.Logger, db *gorm.DB, l2Client *ClientExt, cfg Config) *I
 }
 
 // Start watches for new bot-delegated withdrawals and stores them in the database.
-func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlock) {
+func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlockV2) {
 	timer := time.NewTimer(0)
 	fromBlockNumber := big.NewInt(l2ScannedBlock.Number)
 	lastTimeL2ScannedBlock := time.Now()
@@ -196,7 +196,7 @@ func (i *Indexer) getWithdrawalInitiatedLogs(ctx context.Context, fromBlock *big
 			if withdrawalInitiatedLog != nil && i.isL2StandardBridgeWithdrawalInitiatedLog(withdrawalInitiatedLog) {
 				withdrawalInitiatedLogs = append(withdrawalInitiatedLogs, *withdrawalInitiatedLog)
 			} else {
-				i.log.Crit("eth_getLogs returned an unexpected event", "L2StandardBridgeBotWithdrawLog", vlog, "WithdrawalInitiatedLog", withdrawalInitiatedLog)
+				i.log.Crit("eth_getLogs returned an unexpected event", "L2StandardBridgeBotWithdrawLog", vlog, "WithdrawalInitiatedLogV2", withdrawalInitiatedLog)
 			}
 		} else if i.isFeeVaultWithdrawEvent(&vlog) {
 			// Events flow:
@@ -211,7 +211,7 @@ func (i *Indexer) getWithdrawalInitiatedLogs(ctx context.Context, fromBlock *big
 			if withdrawalInitiatedLog != nil && i.isL2StandardBridgeWithdrawalInitiatedLog(withdrawalInitiatedLog) {
 				withdrawalInitiatedLogs = append(withdrawalInitiatedLogs, *withdrawalInitiatedLog)
 			} else {
-				i.log.Crit("eth_getLogs returned an unexpected event", "FeeVaultWithdrawLog", vlog, "WithdrawalInitiatedLog", withdrawalInitiatedLog)
+				i.log.Crit("eth_getLogs returned an unexpected event", "FeeVaultWithdrawLog", vlog, "WithdrawalInitiatedLogV2", withdrawalInitiatedLog)
 			}
 		} else {
 			i.log.Crit("eth_getLogs returned an unexpected event", "log", vlog)
@@ -231,7 +231,7 @@ func (i *Indexer) storeLogs(logs []types.Log) error {
 		}
 
 		deduped := i.db.Clauses(clause.OnConflict{DoNothing: true})
-		result := deduped.Create(&WithdrawalInitiatedLog{
+		result := deduped.Create(&WithdrawalInitiatedLogV2{
 			TransactionHash:      vLog.TxHash.Hex(),
 			LogIndex:             int(vLog.Index),
 			InitiatedBlockNumber: int64(header.Number.Uint64()),
