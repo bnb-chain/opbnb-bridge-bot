@@ -250,22 +250,22 @@ func (b *Processor) GetProvenTime(wi *WithdrawalInitiatedLog) (*big.Int, error) 
 
 	receipt, err := b.L1Client.TransactionReceipt(context.Background(), common.HexToHash(wi.TransactionHash))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("TransactionReceipt err: %v, wi: %v", err, wi)
 	}
 
 	withdrawal, err := b.toWithdrawal(wi, receipt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("toWithdrawal err: %v, wi: %v", err, wi)
 	}
 
 	withdrawalHash, err := b.hashWithdrawal(withdrawal)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("hashWithdrawal err: %v, wi: %v", err, wi)
 	}
 
 	provenWithdrawal, err := optimismPortal.ProvenWithdrawals(nil, common.HexToHash(withdrawalHash))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("optimismPortal.ProvenWithdrawals err: %v, wi: %v", err, wi)
 	}
 
 	return provenWithdrawal.Timestamp, nil
