@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -629,4 +633,48 @@ func indexedArgs(arguments abi.Arguments) abi.Arguments {
 		}
 	}
 	return indexedArgs
+}
+
+// MaybeAddProofNode fix for the case where the final proof element is less than 32 bytes and the element exists
+// inside of a branch node. Current implementation of the onchain MPT contract can't handle this
+// natively so we instead append an extra proof element to handle it instead.
+//
+// See also https://github.com/ethereum-optimism/optimism/pull/9663/files#diff-8a2a18be5865df2f4d104d52f77f5d315fe784d089aca67fadb0ec607362a96dR49-R78
+func MaybeAddProofNode(key []byte, proof []hexutil.Bytes) []hexutil.Bytes {
+	SizeOfRLPList := func(raw rlp.RawValue) (int, error) {
+		iter, err := rlp.NewListIterator(raw)
+		if err != nil {
+			return 0, err
+		}
+
+		size := 0
+		for iter.Next() {
+			size++
+		}
+		return size, nil
+	}
+
+	if len(proof) == 0 {
+		return proof
+	}
+
+	finalProofEl := proof[len(proof)-1]
+	size, err := SizeOfRLPList(rlp.RawValue(finalProofEl))
+	if err != nil || size != 17 {
+		return proof
+	}
+
+	iter, _ := rlp.NewListIterator(rlp.RawValue(finalProofEl))
+	for iter.Next() {
+		itemValue := iter.Value()
+		if subIter, err := rlp.NewListIterator(itemValue); err == nil {
+			_, subIter1stItem := subIter.Next(), subIter.Value()
+			if strings.HasSuffix(hexutils.BytesToHex(key), hexutils.BytesToHex(subIter1stItem)[3:]) {
+				modifiedProof := append(proof, itemValue)
+				return modifiedProof
+			}
+		}
+	}
+
+	return proof
 }
