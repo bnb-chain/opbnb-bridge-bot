@@ -664,10 +664,10 @@ func MaybeAddProofNode(key []byte, proof []hexutil.Bytes) []hexutil.Bytes {
 	if !isList {
 		return proof
 	}
-	if /* isList && */ err != nil {
+	if err != nil {
 		log.Crit("unexpected error while checking proof element size", "err", err.Error())
 	}
-	if /* isList && err == nil && */ size != 17 {
+	if size != 17 {
 		return proof
 	}
 
