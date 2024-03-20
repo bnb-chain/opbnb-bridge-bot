@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -629,4 +633,67 @@ func indexedArgs(arguments abi.Arguments) abi.Arguments {
 		}
 	}
 	return indexedArgs
+}
+
+// MaybeAddProofNode fix for the case where the final proof element is less than 32 bytes and the element exists
+// inside of a branch node. Current implementation of the onchain MPT contract can't handle this
+// natively so we instead append an extra proof element to handle it instead.
+//
+// See also https://github.com/ethereum-optimism/optimism/pull/9663/files#diff-8a2a18be5865df2f4d104d52f77f5d315fe784d089aca67fadb0ec607362a96dR49-R78
+func MaybeAddProofNode(key []byte, proof []hexutil.Bytes) []hexutil.Bytes {
+	// SizeOfRLPList returns the size of the RLP list if the raw value is a list
+	SizeOfRLPList := func(raw rlp.RawValue) (bool, int, error) {
+		iter, err := rlp.NewListIterator(raw)
+		if err != nil {
+			return err.Error() == rlp.ErrExpectedList.Error(), 0, err
+		}
+
+		size := 0
+		for iter.Next() {
+			size++
+		}
+		return true, size, nil
+	}
+
+	if len(proof) == 0 {
+		return proof
+	}
+
+	finalProofEl := proof[len(proof)-1]
+	isList, size, err := SizeOfRLPList(rlp.RawValue(finalProofEl))
+	if !isList {
+		return proof
+	}
+	if err != nil {
+		log.Crit("unexpected error while checking proof element size", "err", err.Error())
+	}
+	if size != 17 {
+		return proof
+	}
+
+	// According to the above checking, we can assume that the final proof element is a list of 17 elements
+
+	iter, err := rlp.NewListIterator(rlp.RawValue(finalProofEl))
+	if err != nil {
+		log.Crit("unexpected error while iterating proof element", "err", err.Error())
+	}
+
+	for iter.Next() {
+		itemValue := iter.Value()
+		subIter, err := rlp.NewListIterator(itemValue)
+
+		if err != nil && err.Error() == rlp.ErrExpectedList.Error() {
+			continue
+		} else if err != nil {
+			log.Crit("unexpected error while iterating sub proof element", "err", err.Error())
+		}
+
+		_, subIter1stItem := subIter.Next(), subIter.Value()
+		if strings.HasSuffix(hexutils.BytesToHex(key), hexutils.BytesToHex(subIter1stItem)[3:]) {
+			modifiedProof := append(proof, itemValue)
+			return modifiedProof
+		}
+	}
+
+	return proof
 }
