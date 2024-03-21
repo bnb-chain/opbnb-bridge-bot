@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/status-im/keycard-go/hexutils"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 	"strings"
 	"time"
@@ -143,8 +144,11 @@ func (b *Processor) ProveWithdrawalTransaction(ctx context.Context, wi *Withdraw
 	}
 
 	withdrawalProof := accountResult.StorageProof[0]
+
+	key := Keccak256(common.FromHex("0x" + messageSlot))
+	maybeModifiedProof := MaybeAddProofNode(key, withdrawalProof.Proof)
 	withdrawalProof2Bytes := make([][]byte, 0)
-	for _, p1 := range withdrawalProof.Proof {
+	for _, p1 := range maybeModifiedProof {
 		withdrawalProof2Bytes = append(withdrawalProof2Bytes, p1)
 	}
 
@@ -696,4 +700,10 @@ func MaybeAddProofNode(key []byte, proof []hexutil.Bytes) []hexutil.Bytes {
 	}
 
 	return proof
+}
+
+func Keccak256(data []byte) []byte {
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write(data)
+	return hash.Sum(nil)
 }
