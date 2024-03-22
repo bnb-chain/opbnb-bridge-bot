@@ -8,7 +8,7 @@ l2-rpc = "$OPBNB_BRIDGE_BOT_L2_RPC"
 
 [tx-signer]
 privkey = "$OPBNB_BRIDGE_BOT_PRIVKEY"
-gas-price = 3000000000 # 3 gwei
+gas-price = 1000000000 # 1 gwei
 
 [db]
 host = "$OPBNB_BRIDGE_BOT_DB_HOST"
