@@ -32,5 +32,6 @@ whitelist-l2-token-list = [
     "0x7c6b91d9be155a6db01f749217d76ff02a7227f2", # BTCB
     "0xe7798f023fc62146e8aa1b36da45fb70855a77ea", # ETH
     "0x50c5725949a6f0c72e6c4a641f24049a917db0cb", # FDUSD
-    "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3"  # USDT
+    "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3", # USDT
+    "0xAF9fE3B5cCDAe78188B1F8b9a49Da7ae9510F151"  # XCAD
 ]
