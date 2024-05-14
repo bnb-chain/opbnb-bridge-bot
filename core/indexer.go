@@ -119,10 +119,12 @@ func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlockV2) {
 		}
 
 		if fromBlockNumber.Uint64() > toBlockNumber.Uint64() {
+			log.Info("scan block process fromBlockNumber > toBlockNumber", "fromBlockNumber", fromBlockNumber.Uint64(), "toBlockNumber", toBlockNumber.Uint64())
 			timer.Reset(5 * time.Second)
 			continue
 		}
 
+		log.Info("get withdrawal initiated logs", "fromBlockNumber", fromBlockNumber.Uint64(), "toBlockNumber", toBlockNumber.Uint64())
 		logs, err := i.getWithdrawalInitiatedLogs(ctx, fromBlockNumber, toBlockNumber)
 		if err != nil {
 			log.Error("eth_getLogs", "error", err)
@@ -139,6 +141,8 @@ func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlockV2) {
 				log.Error("storeLogs", "error", err)
 				continue
 			}
+		} else {
+			log.Info("no withdrawal initiated logs", "fromBlockNumber", fromBlockNumber.Uint64(), "toBlockNumber", toBlockNumber.Uint64())
 		}
 
 		if lastTimeL2ScannedBlock.Before(time.Now().Add(-10 * time.Minute)) {
@@ -147,7 +151,7 @@ func (i *Indexer) Start(ctx context.Context, l2ScannedBlock *L2ScannedBlockV2) {
 			if result.Error != nil {
 				log.Error("update l2_scanned_blocks", "error", result.Error)
 			}
-
+			log.Info("save l2ScannedBlock", "l2ScannedBlock", toBlockNumber.Int64())
 			lastTimeL2ScannedBlock = time.Now()
 		}
 
