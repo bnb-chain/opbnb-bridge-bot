@@ -20,7 +20,7 @@ contract L2StandardBridgeBotTest is Test {
     event SentMessageExtension1(address indexed sender , uint256 value);
 
     function setUp() public {
-        opbnbMainnetFork = vm.createFork("https://opbnb-testnet-rpc.bnbchain.org");
+        opbnbMainnetFork = vm.createFork("https://opbnb-testnet.nodereal.io/v1/e9a36765eb8a40b9bd12e680a1fd2bc5");
         vm.selectFork(opbnbMainnetFork);
         vm.rollFork(opbnbMainnetFork, 7125821);
         bot = new L2StandardBridgeBot(payable(deployer), withdrawFee);
