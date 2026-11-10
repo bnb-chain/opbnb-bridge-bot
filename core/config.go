@@ -73,7 +73,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	}
 
 	data = []byte(os.ExpandEnv(string(data)))
-	log.Debug("parsed config file", "data", string(data))
+	log.Debug("parsed config file")
 	if _, err := toml.Decode(string(data), &conf); err != nil {
 		log.Info("failed to decode config file", "err", err)
 		return conf, err
